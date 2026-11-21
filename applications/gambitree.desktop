@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Gambitree
+Exec=gambitree %F
+Icon=gambitree
+Terminal=false
+Categories=Game;BoardGame;

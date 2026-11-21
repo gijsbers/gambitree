@@ -1,0 +1,57 @@
+Gambitree asset notices
+======================
+
+The program is licensed under GPL-3.0-or-later; the full text is in LICENSE.
+The following artwork retains its own licensing terms.
+
+Meridian Shaded pieces
+----------------------
+Author: Martin Sedlák.
+Upstream: https://github.com/kmar/chess_svg_piece_sets
+The author dedicates this artwork to the public domain. The original dedication
+and SVGs are retained in assets/pieces/meridian-shaded/source/ in the source
+distribution. Gambitree's GPL does not replace that dedication.
+
+Other project artwork
+---------------------
+Gambitree Classic pieces and the application icons are project-provided artwork.
+The source distribution records the Classic pieces' AI-generation origin and
+CC0 claim. Wood and Wood Veneer textures are original AI-generated project
+artwork; project GPL terms apply where copyright exists. Full provenance,
+source hashes and preparation instructions remain in assets/ in the source
+distribution.
+
+Cburnett pieces
+---------------
+Author: Colin M. L. Burnett (Wikimedia Commons User:Cburnett).
+Original artwork: https://commons.wikimedia.org/wiki/User:Cburnett
+The twelve PNG pieces are rendered from the original Wikimedia Commons SVGs.
+Selected license: BSD 3-Clause. In the notice below, "The author" means the
+credited artwork author. The original SVGs and per-file source records remain
+in assets/pieces/cburnett/ in the source distribution. These terms apply to
+that artwork and its PNG renders, independently of Gambitree's program license.
+
+Copyright © The author
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of The author nor the names of its contributors may be used
+   to endorse or promote products derived from this software without specific
+   prior written permission.
+
+This software is provided by The author and contributors "as is" and any express
+or implied warranties, including, but not limited to, the implied warranties of
+merchantability and fitness for a particular purpose are disclaimed. In no event
+shall The author and contributors be liable for any direct, indirect, incidental,
+special, exemplary, or consequential damages (including, but not limited to,
+procurement of substitute goods or services; loss of use, data, or profits; or
+business interruption) however caused and on any theory of liability, whether
+in contract, strict liability, or tort (including negligence or otherwise)
+arising in any way out of the use of this software, even if advised of the
+possibility of such damage.

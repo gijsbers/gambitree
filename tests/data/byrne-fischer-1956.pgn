@@ -1,0 +1,111 @@
+[Event "New York Rosenwald"]
+[Site "New York, NY USA"]
+[Date "1956.10.17"]
+[Round "10"]
+[White "Byrne, David"]
+[Black "Fischer, Robert James"]
+[Result "0-1"]
+[ECO "D96"]
+[PlyCount "82"]
+[Annotator "Franco, Zenon"]
+
+1. Nf3 Nf6 2. c4 g6 3. Nc3 Bg7 4. d4 O-O 5. Bf4
+{Byrne is avoiding the King's Indian (with 5. e4), probably because he had heard that the lad sitting across from him was already one of the best KI players in the country.}
+5... d5 6. Qb3 dxc4 7. Qxc4 c6 8. e4 Nbd7 9. Rd1 Nb6 10. Qc5 Bg4 11. Bg5?! Na4!!
+{Reuben Fine awards this move three exclamation points and calls it "a brilliant reply". Flohr and Botvinnik in "64" called it "a shocking and stunning move." Fred Reinfeld called it "one of the most magnificent moves ever made on a chessboard," and recently GM Jon Rowson referred to it as "one of the single most powerful chess moves of all time."}
+12. Qa3
+{This is forced, probably the only playable move in the position.}
+(12. Nxa4 {The knight sacrifice cannot be accepted:} 12... Nxe4 13. Qc1 (13. Qxe7 Qa5+ 14. b4 Qxa4 15. Qxe4 Rfe8 16. Be7 Bxf3 17. gxf3 Bf8 {and Black is winning} ) 13... Qa5+ 14. Nc3 Bxf3 15. gxf3 Nxg5 {and Black is clearly better (Shipov)})
+12... Nxc3
+{A kibitzing GM here said that Black was simply lost in this position.}
+13. bxc3 Nxe4! {Fine and Reinfeld give two exclamation marks.}
+14. Bxe7 Qb6!
+15. Bc4
+({Taking is not advisable:} 15. Bxf8 Bxf8 16. Qb3
+Nxc3! {"and Black is clearly better here" (Gligoric).})
+15... Nxc3!
+{"Black comes up with one beautiful move after another" (I. Chernev).}
+16. Bc5
+( 16. Qxc3 Rfe8 17. Bxf7+ Kxf7 18. Ng5+ Kxe7 ({Interesting that} 18... Kg8?? {would have given the opponent a spectacular finish:} 19. Qc4+ Be6 20. Qxe6+ Kh8 21. Nf7+ Kg8 22. Nh6+ Kh8 23. Qg8+ Rxg8 24. Nf7# {A smothered mate for White!})
+19. O-O Bxd1 20. Rxd1 Qb5 {and Black is winning.})
+16... Rfe8+
+17. Kf1 Be6!!
+{[%diagram] The move that brought the 13-year-old instant world-wide fame. Reuben Fine gave it four exclamation marks ("An astounding reply ... which wins in all variations"), Flohr gave it three. "To have foreseen this spectacular queen sacrifice several moves in advance – as Fischer must have done – is extraordinary"; writes Graham Burgess in "The World's Greatest Chess Games". Our chess engine Fritz considers only this move from the first second onwards, giving it a +2 pawns score after a 16-ply search.  Actually, everything else is bad for Black, for instance}
+(17... Nb5? 18. Bxf7+! Kxf7 (18... Kh8 19. Bxb6 Nxa3 20. Bxe8+/-) 19. Qb3+ Be6 20. Ng5+ {and White is winning. This confirms what Burgess says: Fischer had seen the queen sacrifice many moves in advance.})
+18. Bxb6
+{After this move Fritz immediately shows a 4.5-pawn advantage for Black, displaying the game continuation up to move 25 in it's main line. The alternative}
+(18. Bxe6 {is even worse:} 18... Qb5+ 19. Kg1 Ne2+ 20. Kf1 Ng3+ 21. Kg1 Qf1+! 22. Rxf1 Ne2# {and this time it is Black giving a smothered mate! It is extraordinary that the threat of smothered mate occurs for both sides in a single game.})
+{But one must consider}
+(18. Qxc3 Qxc5! 19. dxc5 Bxc3 20. Bxe6 Rxe6-+)
+{but Black is a pawn up and easily winning. The same applies to}
+(18. Bd3 Nb5 {with a clear advantage.})
+18... Bxc4+
+{Thus begins one of the greatest king hunts in chess history – and certainly one that gives enormous aesthetic pleasure.}
+19. Kg1
+(19. Rd3 Bxd3+ 20. Kg1 Ne2+ 21. Kf1 Nf4+ 22. Kg1 axb6 {and White loses everything.})
+19... Ne2+
+{The start of a windmill check series – the Germans call it "zwickmühle".}
+20. Kf1 Nxd4+
+{After removing the d-pawn the knight is protected on c3 by the Bg7 two moves later.}
+21. Kg1
+(21. Rd3 axb6 22. Kg1 ({After} 22. Qc3 Nxf3 {the queen falls.}) 22... Ne2+ 23. Kf1 Nf4 {and White is completely lost.})
+21... Ne2+
+22. Kf1 Nc3+
+23. Kg1
+{Black has at least a draw here, which may have been part
+of young Bobby's original calculations. But now he has
+more on his mind.}
+23... axb6
+24. Qb4 Ra4!
+25. Qxb6 Nxd1
+{"Bobby has a Rook, two minor pieces, and a Pawn for the
+Queen – more than enough, materially speaking. Besides
+this, he has a mating attack against the White King. The
+rest is a mopping up operation, which he conducts with
+absolute precision" (Reuben Fine).
+Byrne is stubborn and plays on against the 13-year-old.}
+26. h3 Rxa2
+27. Kh2 Nxf2
+{The advantage has grown to rook, two bishops and
+three pawns for the queen.}
+28. Re1 Rxe1
+29. Qd8+ Bf8
+30. Nxe1 Bd5
+{Instead of simply pushing and promoting a queenside pawn
+the young Fischer plays for mate.}
+31. Nf3 Ne4
+32. Qb8 b5
+33. h4 h5
+{Rawson notes that every black piece is defended,
+"a sure sign of good technique."}
+34. Ne5 Kg7
+35. Kg1
+{To avoid the pin ... Bd6. But now it is a forced mate for Black.}
+35... Bc5+
+36. Kf1
+(36. Kh2 Nd2 {threatening 37... Nf1+ 38. Kh3 Bxg2 mate.}
+37. Kh1 Ra1+ 38. Kh2 Nf1+ 39. Kh3 Ra2 {and mate to follow.})
+36... Ng3+
+37. Ke1 Bb4+
+{There were shorter mates:}
+(37... Re2+ 38. Kd1 Bb3+ 39. Kc1 Ba3+ 40. Kb1 Re1#)
+{or even}
+(37... Bb3 38. Qh8+ Kxh8 39. Nxf7+ Kg7 40. Nd6 Re2#)
+38. Kd1 Bb3+
+39. Kc1 Ne2+
+40. Kb1 Nc3+
+41. Kc1 Rc2#
+{Bobby went for the elegant, systematic mate, which
+Byrne very gamely allowed him to deliver.}
+0-1
+{Hans Kmoch, a famous chess writer and preeminent chess
+journalists at the time, labeled this the "Game of the
+Century" in Chess Review. The name stuck.
+Samuel Reshevsky called it "a very profound and
+marvelous conception"; Mikhail Botvinnik said: "We will
+have to start keeping an eye on this boy."
+Fred Reinfeld said it was "one of the most brilliant, pretty,
+and one of the most magnificent games of chess ever
+played." The game has been quoted and discussed in
+countless chess books and collections, but interestingly it
+is not to be found in Bobby Fischer's "My 60 Memorable Games."}

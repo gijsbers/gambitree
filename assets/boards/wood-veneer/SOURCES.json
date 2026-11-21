@@ -1,0 +1,44 @@
+[
+  {
+    "output": "wood-veneer-light.png",
+    "origin": "Original AI-generated image, built-in image_gen tool; not a photograph or third-party CC0 scan",
+    "date": "2026-11-14",
+    "source_filename": "exec-4be16dc8-8609-44cc-904e-a575cf650938.png",
+    "source_size": [
+      1254,
+      1254
+    ],
+    "source_sha256": "b14542b7b24c85d5d185371e1067dd9eeacfb48335437acc9bdb7044f2cc2381",
+    "size": [
+      1024,
+      1024
+    ],
+    "rgb_offsets": [
+      -4,
+      9,
+      22
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset type: one square opaque RGB wood albedo texture for warm beige light squares of a restrained high quality wooden chessboard, not a picture of a chessboard. Generate exactly ONE entire seamless-looking continuous unjointed large sheet of natural pale maple veneer, square composition at least 1536 x 1536 pixels. Orthographic straight-on macro scan with perfectly flat diffuse lighting, no shadows, no highlights, no perspective, no vignetting. Warm ivory beige like raw maple, average RGB approximately 218,202,169, not yellow or orange. Very quiet close straight fine vertical wood fibres with tiny natural pores and delicate irregular growth, subtle non-uniform broad warm tone variation across the sheet. Grain visible only on close inspection, low contrast but clearly botanical wood, not noise, stripes or a procedural filter. This sheet will be cut into 32 DIFFERENT small squares about one sixth of its width each. Avoid knots, joints, boards, edges, nail holes, dramatic cathedrals, scratches, text, logos, borders, watermarks, chess squares, pieces, and glossy reflections. Uniform opaque color all the way to all four edges, no transparent background. Save as a high resolution square PNG. The whole image must show only a pristine calm maple wood surface, nothing else."
+  },
+  {
+    "output": "wood-veneer-dark.png",
+    "origin": "Original AI-generated image, built-in image_gen tool; not a photograph or third-party CC0 scan",
+    "date": "2026-11-14",
+    "source_filename": "exec-069540b2-612f-4f5f-9b0e-ee7459acf8a8.png",
+    "source_size": [
+      1254,
+      1254
+    ],
+    "source_sha256": "fc2ae2babd07ccff486b166ec1c645014119afac863442c74e749d95cc687152",
+    "size": [
+      1024,
+      1024
+    ],
+    "rgb_offsets": [
+      7,
+      12,
+      13
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset type: one square opaque RGB wood albedo texture for deep warm brown dark squares of a restrained high quality wooden chessboard, not a picture of a chessboard. Generate exactly ONE entire continuous unjointed large sheet of natural quarter-cut walnut veneer, square composition at least 1536 x 1536 pixels. Orthographic straight-on macro scan with perfectly flat diffuse lighting, no shadows, no highlights, no perspective, no vignetting. Deep warm neutral walnut brown, average RGB approximately 117,85,61, not orange, not black, no purple. Very quiet fine mostly vertical walnut fibres, tiny real organic pores, delicate irregular growth lines, gentle natural tone variation across the large sheet. Low local contrast, clean premium matte veneer, unmistakably wood on close inspection, not a noise filter or repeated stripes. This sheet will be cut into 32 DIFFERENT small squares about one sixth of its width each. Keep every region sufficiently light brown to distinguish black chess pieces with white edge detailing. Avoid knots, joints, plank seams, edges, cracks, dramatic cathedrals, scratches, text, logos, borders, watermarks, chess squares, pieces, glossy reflections. Uniform opaque color all the way to all four edges, no transparent background. Save as a high resolution square PNG. The whole image must show only a calm premium dark walnut wood surface, nothing else."
+  }
+]

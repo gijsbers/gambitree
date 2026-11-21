@@ -1,0 +1,360 @@
+.TH GAMBITREE 1
+.SH NAME
+gambitree \- open and explore chess games
+.SH SYNOPSIS
+.B gambitree [OPTIONS] [FILE ...]
+.SH DESCRIPTION
+Gambitree opens chess game files (PGN files) and shows the moves beside a
+chessboard. You can replay the moves, read notes, and explore other possible
+lines without changing the game file.
+.PP
+A file can contain one game or many games. You can also open several files in
+one window. Gambitree keeps the files in the order you give them.
+.SH QUICK START
+Open one game file from a terminal:
+.PP
+.RS
+.B gambitree /path/to/my-game.pgn
+.RE
+.PP
+Use the Right Arrow key to play through the game. The board shows the position
+after the selected move. To go back, use the Left Arrow key. You can also click
+a move in the game or an alternative line to show that position.
+.PP
+To open more than one file, list their names in order:
+.PP
+.RS
+.B gambitree tournament.pgn another-game.pgn
+.RE
+.PP
+Use Page Down and Page Up to move between games in the current file. Use
+Control-Page Down and Control-Page Up to move between files.
+Use Control-G to choose a game from a searchable list. Use Control-Shift-G to
+choose a file given when Gambitree started. Type to filter, use Up/Down to
+select and Enter to open. Escape closes either list without changing the game.
+.SH KEYBOARD CONTROLS
+.TP
+.B ?
+Show or hide a quick guide to the keyboard controls inside the main window.
+Escape also closes the guide. Game controls are inactive while it is open.
+Use Up/Down, Page Up/Down, Home/End or the mouse wheel to scroll it.
+.TP
+.B Control-F
+Open the notation search bar. Type to search moves, alternatives and comments.
+Press Enter or F3 for the next match; hold Shift for the previous match.
+Search is case-insensitive and wraps at the beginning and end. Escape closes
+the search bar without changing the selected chess move.
+.TP
+.B Right Arrow
+Go to the next move in the current line. At the end of a line, the selection
+stays on the last move.
+.TP
+.B Left Arrow
+Go back one move. If you go back across the first move of an alternative line,
+Gambitree returns to the position where that line began. Right Arrow then
+continues along the played game or the selected parent line.
+.TP
+.B Up Arrow
+Leave the alternative line you are exploring and return to the position where
+it branches from the line above it. In a nested alternative, press Up again to
+leave the next level. Up has no effect on the played game when no alternative
+line is open.
+.TP
+.B Down Arrow
+Select the next alternative move offered at the same point, when one is
+available. This works both in the played game and inside an alternative line.
+It does not wrap to earlier choices; click an earlier move to select it.
+.PP
+If there is no next choice inside an alternative line, skip the rest of that
+line and select the next move shown after it. This may be a move in the line
+above or the first move of another alternative. If neither action has a
+destination, the selection stays where it is.
+.TP
+.B Home
+Show the starting position of the current game.
+.TP
+.B End
+Go to the last move reached by following the current line and any choices you
+have selected. Where no choice was made, Gambitree follows the move played in
+the game. The selected move remains visible. Text after the game does not move
+the selection away from the last chess move.
+.TP
+.B Page Up / Page Down
+Show the previous or next game in the current file.
+.TP
+.B Control-G
+Open a searchable list of games in the current file. Type to filter, use
+Up/Down to select and Enter to open a game. Escape closes the list without
+changing the current game.
+.TP
+.B Control-Shift-G
+Open a searchable list of PGN files given when Gambitree started. Type to
+filter, use Up/Down to select and Enter to open a file. Escape cancels.
+.TP
+.B Shift-Page Up / Shift-Page Down
+Scroll the notation up or down by about one visible screen, keeping the selected
+move and board position unchanged. A small overlap keeps your place in the text.
+.TP
+.B Control-Page Up / Control-Page Down
+Show the previous or next file.
+.TP
+.B Control-Delete
+Open a confirmation to permanently remove the selected game from its file. This
+cannot be undone. See the section Removing a game below.
+.TP
+.B F
+Turn the chessboard around.
+.TP
+.B B
+Cycle through Classic, Wood and Wood Veneer boards. Classic remains the default.
+Gambitree remembers the choice independently of the piece set.
+Wood Veneer uses two calm beige/brown texture images, with a different fixed
+crop for each logical square. Resizing preserves the crop; rotation turns it
+with the board. A cached background avoids texture scaling during ordinary
+redraws. Missing veneer assets fall back to classic board colours.
+The supplied veneer images are original AI-generated alternatives, not real
+photographs or third-party CC0 scans. Full provenance remains in the source
+distribution; installed asset credits are in THIRD-PARTY-NOTICES.
+.TP
+.B P
+Cycle through Gambitree Classic, Meridian Shaded and Cburnett pieces.
+Gambitree remembers the choice independently of the board theme.
+.TP
+.B G
+Switch between piece letters and chess figurines in the notation and engine
+move line. Letter
+notation is the default. Gambitree remembers your choice for the next start.
+.TP
+.B + / -
+Make the move text larger or smaller. The equals key also increases the size.
+Hold Control while pressing these keys to change only the engine analysis
+text size. Each size is remembered, from 8 to 24 points. Ordinary interface
+text keeps its size.
+.TP
+.B A
+Turn chess engine analysis on or off. Stockfish is used by default when it is
+available.
+.TP
+.B Escape / Q
+Close Gambitree. When the keyboard guide is open, Escape closes only the guide
+and Q is ignored.
+.SH EXPLORING ALTERNATIVE MOVES
+An alternative line is another possible sequence of moves shown in parentheses
+in the notation. To explore one:
+.IP "1." 4
+Find the alternative moves in the notation and click a move in that line.
+.IP "2." 4
+Press Right Arrow to continue through that line.
+.IP "3." 4
+Press Up Arrow to return to the position where the alternative began.
+.IP "4." 4
+Press Right Arrow to continue with the played game.
+.PP
+Up Arrow returns to the position where the current alternative line begins.
+Down Arrow first selects the next alternative move at the same point, even
+inside another alternative. If there is no next choice, it skips the rest of
+the current alternative line and selects the next move shown after it. If
+neither action has a destination, the selection stays where it is. Click an
+earlier move to select it again.
+.PP
+For example, an annotated game such as Byrne--Fischer may show several
+alternative lines. Explore one with Right Arrow, then use Up Arrow to return
+and continue the played game. At the end of a line, Right Arrow stays at its
+last move; use Up Arrow to leave an alternative line or Left Arrow to go back.
+.SH MOUSE CONTROLS
+.TP
+.B Left mouse button on a move
+Show the position after that move and select it in the notation.
+.TP
+.B Mouse wheel
+Scroll the notation. Scrolling does not change the selected chess move.
+.TP
+.B Top controls
+Use the controls at the top of the side panel to move between loaded files and
+games.
+.PP
+Drag the divider between the board and notation to give either panel more
+space. Gambitree remembers your chosen proportions for the next start and
+adjusts them when the window size changes.
+.PP
+Annotations use symbols: a right arrow marks attack, equals/infinity signs
+mark compensation, a double-headed arrow marks counterplay, and a circled dot
+marks zugzwang. Counterplay is slight when the arrow has a plus sign and
+moderate otherwise. A clockwise arrow marks a development advantage; a circled
+plus marks time pressure. For these last two symbols, one or two following
+plus signs mean slight or moderate respectively.
+Delta means "with the idea" and inverted delta means
+"aimed against". Comparison symbols indicate better, worse or equivalent
+continuations. These are editor annotations, not engine scores. "W" means White
+and "Z" means Black. NAG codes 149 and above are kept in the PGN data but are
+not shown in the notation.
+.SH OPENING GAME FILES
+Give one or more file paths when starting Gambitree.  For example:
+.PP
+.RS
+.B gambitree 'My chess games.pgn'
+.RE
+.PP
+If a file contains several games, Page Up and Page Down move between them.
+When several files are open, Control-Page Up and Control-Page Down move
+between files. The program reads games for viewing and does not change the
+PGN files when you view them. Permanent removal is a separate command,
+described under Removing a game below.
+The Control-G list makes it easier to jump directly to a game. The
+Control-Shift-G list shows the startup file arguments in their original order.
+.SH OPTIONS
+.TP
+.B --fullscreen
+Ask the window manager to start fullscreen. Not saved in session settings.
+.TP
+.B --iconic
+Ask the window manager to start minimized. Not saved in session settings.
+.TP
+.BI --title " TITLE"
+Use TITLE as the window title.  Without this option, the usual Gambitree
+title, filename and available game index are shown.
+.TP
+.BI --role " NAME"
+Set the main window's WM_WINDOW_ROLE property for window-manager rules.
+NAME must be non-empty printable ASCII.  By default this property is absent.
+.TP
+.BI --engine " PATH"
+Use PATH as the chess engine program instead of the default name
+.BR stockfish .
+.TP
+.BI --board " BOARD"
+Choose classic, wood or wood-veneer. This overrides the saved board preference
+and is remembered through the usual session settings. Without this option,
+use the saved preference, or Classic if none is available. If repeated, the
+last value wins. Press B to cycle boards while the window is open.
+.TP
+.BI --geometry " GEOMETRY"
+Set the starting client size and window position using X11 geometry syntax,
+for example 1200x800+40+60, 1200x800, or +40+60. Negative offsets such as
+1200x800-20-20 measure from the right and bottom edges; -0 preserves this
+edge-relative meaning. Unspecified components use the saved geometry.
+Explicit dimensions are limited to 480x320 through 8192x8192 and fitted to
+the screen, even if it is smaller than the minimum. Off-screen positions
+are brought back onto the screen. Window-manager placement policies apply.
+Missing or invalid values are ignored with a warning; the last valid
+--geometry wins. The resulting geometry is remembered through the existing
+session settings.
+.TP
+.BI --pieces " NAME"
+Choose a bundled piece design:
+gambitree, \%meridian\-shaded or cburnett.
+The name classic also selects the Gambitree design; names of locally installed
+piece folders may also be used.
+.TP
+.B --print-window-id
+Print the X11 window number after the window opens.
+.TP
+.B --help
+Show a short list of command options and exit.
+.TP
+.B --version
+Show the Gambitree version and exit.
+.SH ADVANCED DETAILS
+.SS Games with a different starting position
+Gambitree supports standard chess games that use a FEN starting position,
+including positions with missing pieces. Castling rights must agree with the
+king and rook positions. PGN Variant values Chess960, Fischerandom, and Fischer
+Random select Chess960 rules before reading the starting position. Chess960
+FEN accepts X-FEN castling symbols KQkq and Shredder-FEN rook-file letters A-H
+and a-h. Unknown Variant values are reported as errors.
+.SS Removing a game
+Control-Delete opens a confirmation dialog for permanently removing the
+selected game from its PGN file. This cannot be undone. It is available only
+after the file has finished indexing, and only for a regular, non-symbolic-link
+file no larger than 32 MiB with one hard link. Gambitree records a SHA-256
+content fingerprint and file identity when a file is loaded; removal is refused
+if the identity, metadata, or content has changed.
+.PP
+Larger PGN files remain available for viewing, but game removal is disabled
+for files over the limit. Gambitree stages the remaining file contents in the
+same folder and publishes them by rename. It does not create a backup. A
+non-cooperating external writer can still change the file during the final
+verification and replacement. After removal, Gambitree selects the next game
+in the file, or the previous game if there is no next game. Removing a file's
+only game also removes that file from disk and from the loaded file list.
+.SS Engine analysis
+After the window opens, Gambitree starts Stockfish asynchronously when it is
+available on PATH. It shows the search depth, score from White's point of view,
+and a suggested move line. A missing or failed engine does not prevent viewing
+games. For Chess960 games Gambitree enables Stockfish's UCI_Chess960 setting
+and updates it when changing game types.
+Selective depth (sel) indicates the maximum selective search depth reported
+by the engine, measured in plies.
+Each Black move in the suggested line is followed by a period, without move
+numbers. Click a suggested move to preview the position after it. The selected
+analysis snapshot stays visible while Stockfish continues searching the original
+PGN position. PGN navigation (including an unsuccessful navigation attempt) or
+clicking a PGN move ends the preview and shows current analysis again. Preview
+moves never become part of the PGN game and have no keyboard navigation.
+.SS Remembered settings
+Changed settings are saved after 1000 milliseconds without another settings
+change. Resizing postpones the write until the geometry settles; navigation,
+scrolling and engine output do not postpone it. Unchanged values are not written.
+Normal exit and SIGTERM flush pending changes immediately. SIGKILL and crashes
+cannot do so. Gambitree saves the window size, board theme, piece design,
+analysis setting, figurines, text sizes, panel proportions and the window
+position when the window manager reports it reliably.
+An off-screen saved position is adjusted so part
+of the window remains visible; the window manager may choose another position.
+.PP
+Settings are stored in
+.I $XDG_STATE_HOME/gambitree/state
+when XDG_STATE_HOME is an absolute path. Otherwise Gambitree uses
+.I ~/.local/state/gambitree/state
+when HOME is available. If neither location is usable, settings are not saved.
+An invalid or unwritable settings file does not prevent normal use.
+.PP
+Settings are replaced atomically. Cooperating processes merge their own changed
+fields with the latest file under a non-blocking lock; a process with no changes
+does not overwrite newer settings at exit. For conflicting edits to the same
+field, the last successful save wins. Write errors retain pending changes,
+warn once and retry after a delay. An unreadable state file is not blindly
+replaced. A small state.lock file is retained beside the state file.
+.SS Large files
+One selected game may use up to 64 MiB when loaded. For conventional PGN
+databases of 128 MiB or more, Gambitree builds a provisional index in 1 MiB
+blocks and continues while the window remains usable. Other input is indexed
+with a general scanner. A physical input line longer than 1 MiB is rejected to
+limit memory use.
+.SH TROUBLESHOOTING
+.TP
+.B The window opens but no game is shown.
+Start Gambitree with a game file path, for example
+.BR "gambitree /path/to/my-game.pgn" .
+.TP
+.B Stockfish is not available.
+You can still view and replay games. Install Stockfish or use
+.B --engine PATH
+to name another UCI chess engine.
+.TP
+.B I reached the end of an alternative line.
+Press Up Arrow to return to the line above it. Press Left Arrow to go back one
+move, or click a move in another line.
+.SH ENVIRONMENT
+.TP
+.B GAMBITREE_DIAGNOSTICS=1
+Write indexing, memory, parsing, engine, and rendering details to standard
+error. This also prints the window number to standard output.
+.SH FILES
+Installed piece designs are below share/gambitree/pieces. Application icons
+use share/icons/hicolor. Development builds on Linux also search for icon
+files relative to /proc/self/exe. The classic board appearance is drawn by the
+program. LICENSE and THIRD-PARTY-NOTICES are installed below share/doc/gambitree.
+Piece-design sources, hashes and full provenance remain in the source
+distribution, as described in assets/README.md.
+.SH DIAGNOSTICS
+The main window exposes WM_CLASS, _NET_WM_PID, WM_COMMAND, WM_CLIENT_MACHINE,
+and STOCKFISH_PID while an engine process exists.
+.SH EXIT STATUS
+Zero means normal completion. Invalid command-line options exit with status 2.
+Startup or X11 errors exit with a non-zero status.
+.SH LICENSE
+Gambitree is licensed under the GNU General Public License, version 3 or later.
+The shipped piece assets have separate provenance information. See
+.I assets/README.md
+for details.

@@ -1,0 +1,28 @@
+[Event "USA-ch"]
+[White "Byrne,Robert Eugene"]
+[Black "Fischer,Robert James"]
+[Site "New York,NY"]
+[Round "3"]
+[Annotator "ChessBase"]
+[Result "0-1"]
+[Date "1963.12.18"]
+[PlyCount "42"]
+
+{Fischer won every US Championship in which he took part. In the 1963/1964
+event he even won with 11.0/11.} 1. d4 Nf6 2. c4 g6 3. g3 c6 4. Bg2 d5 5. cxd5 cxd5 6. Nc3 Bg7 7. e3 O-O 8. Nge2 Nc6 9. O-O b6 10. b3 Ba6 11. Ba3 Re8 {
+The position is completely equal which might have made Byrne to lose his sense
+of danger.} 12. Qd2 $6 ({After} 12. Rc1 Rc8 13. Re1 {the white rooks would no
+longer be in danger to be taken by Black's bishops and White would be ready to
+play Nf4, and everything would be fine.} )e5 $5 {Fischer gladly accepts
+the chance to bring tension into the game.} 13. dxe5 Nxe5 14. Rfd1 $2 {The
+wrong rook. That White loses this apparently normal and equal position in no
+more than 7 moves that the game famous.} ({Better was} 14. Rad1 {After the
+natural} Qd7 {Fischer gives} (14... Qc8 $5 {The best move according to Fischer.
+This might well be but not all his lines are correct:} 15. Nxd5 (15. Bb2 Qf5 $36 {(Fischer)} )Nxd5 16. Bxd5 Rd8 17. f4 Rxd5 $1 (17... Ng4 $5 18. e4 Nf6 $1 19. f5 $1 (19. Be7 Nxe4 20. Qe3 Rxd5 21. Rxd5 Qe6 $17 )Nxe4 20. Qe3 Rxd5 21. Rxd5 Bxe2 22. Qxe2 Nc3 23. Qf3 Nxd5 24. Qxd5 $16 )18. Qxd5 Bb7 19. Qd2 Qc6 $1 (19... Qh3 20. Nd4 Ng4 {is the line Fischer gives but after} 21. Nf3 $1 {Black has no compensation for the material deficit.} )20. Qd5 Qc8 21. Qd2 Qc6 $11 )(14... Ne4 $2 15. Nxe4 dxe4 16. Bxe4 Qxd2 17. Rxd2 Nc4 18. Bxa8 Nxd2 19. Rd1 Nc4 20. Bc6 $1 {Averbakh,Y} (20. bxc4 Rxa8 $17 {(Fischer) >< c4, ^^} )Nxa3 21. Bxe8 Bxe2 22. Rd7 $18 )15. Qc2 Rac8 16. Qb1 {but Fritz likes
+Black's position:} Qg4 $1 17. h3 (17. f3 Qh5 18. Rf2 (18. Bc1 )Qh6 )Qh5 18. Nf4 Qh6 19. Ncxd5 Bxf1 20. Rxf1 Nxd5 21. Nxd5 Kh8 $13 )Nd3 $1 15. Qc2 $6 {[%mdl 512] This loses, but} ({the alternatives} 15. Nd4 Ne4 16. Nxe4 dxe4 17. Bb2 Rc8 )({and} 15. Nf4 Ne4 16. Nxe4 dxe4 {are not particularly
+attractive for White either.} )Nxf2 $1 {Chess engines indicate this move
+immediately but for the wrong reasons.} 16. Kxf2 Ng4+ 17. Kg1 Nxe3 18. Qd2 Nxg2 $1 19. Kxg2 d4 $1 {The point of the sacrifice 15...Nxf2!.} ({After} 19... Bxe2 20. Nxe2 Bxa1 21. Rxa1 {White can be happy though some computers calculate a
+material advantage for Black.} )20. Nxd4 Bb7+ 21. Kf1 ({After} 21. Kg1 {
+Black has} Bxd4+ 22. Qxd4 Re1+ $1 23. Kf2 Qxd4+ 24. Rxd4 Rxa1 $19 )(21. Kf2 Qd7 $1 )Qd7 $1 {Source: Bobby Fischer "My 60 Memorable Games"} (21... Qd7 $1 22. Qf2 (22. Ndb5 Qh3+ 23. Kg1 Bh6 $19 )Qh3+ 23. Kg1 Re1+ $3 24. Rxe1 Bxd4 $19 )0-1
+
+

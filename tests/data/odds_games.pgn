@@ -1,0 +1,139 @@
+[Event "New Orleans ?"]
+[Site "New Orleans, LA USA"]
+[Date "1850.??.??"]
+[Round "?"]
+[White "Paul Morphy"]
+[Black "Alonzo Morphy"]
+[Result "1-0"]
+[SetUp "1"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w Kkq - 0 1"]
+[EventDate "?"]
+[ECO "000"]
+[WhiteElo "?"]
+[BlackElo "?"]
+[PlyCount "35"]
+[Link "https://www.chess.com/analysis/games"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 $2 {Don't all the Fried
+Liver :)} (5... Na5 $1 6. Bb5+ c6 7. dxc6 bxc6 {This main line would be an even
+better antidote in this case because Black is already up a rook so sacrificing a
+pawn for activity particularly suits him and reduces Paul's chances to
+complicate the game.}) 6. Nxf7 $5 {This is very dangerous and strong...} (6. d4 $1
+{...but this is even better. I learned this in a correspondence game where I
+couldn't force Black's defenses after 6.Nxf7 $5 though my opponent did err
+eventually. In practice, both options are strong.}) 6... Kxf7 7. Qf3+ Ke6 {The
+only way to evade check is to advance with the king.} (7... Kg8 $4 8. Qxd5+ Qxd5
+9. Bxd5+ Be6 10. Bxe6# {is a painful mate that has befallen many amateurs. I had
+one student (a 1200 adult) who allowed this repeatedly $1}) 8. Nc3 Nd4 $2 {Simply
+defending makes sense. I don't know why Black surrendered d5, but presumably
+Black thought Nxc2+ had merit.} (8... Nb4 $1) (8... Ne7 $1) 9. Bxd5+ Kd6 10. Qf7 $1
+{Ne4# is threatened.} 10... Be6 $2 {This LOOKS good, but it is in fact nearly
+losing after Morphy's excellent sequence.} (10... Nxc2+ $2 11. Kd1 {Black still
+has to cover Ne4# AND the knight on c2 hangs.}) (10... Qe7 {This is the simplest
+response. After Ne4+ there is ...Kd7, and of course, White cannot trade queens
+due to the missing rook on a1.}) 11. Bxe6 Nxe6 12. Ne4+ Kd5 (12... Kc6 {giving
+up the knight (and suffering) is needed.}) 13. c4+ $1 {Once the king is forced in
+front of his pawns, a proper king hunt often offers more material to drag him
+deeper into the swamp.} 13... Kxe4 14. Qxe6 Qd4 {There is nothing better really.
+All defenses lose.} (14... Kd3 {Stockfish's preferred try.} 15. Qg4 $1 {and the
+Black king is still trapped.}) 15. Qg4+ Kd3 16. Qe2+ Kc2 17. d3+ $1 {A pleasing
+discovery which sets up the beautiful mate.} 17... Kxc1 (17... Kb1 {Obviously
+this is more resistant, but White still forces mate.} 18. O-O Kxa2 19. Qc2 b5
+20. b3+ Ka1 21. Bh6#) 18. O-O# {Checkmate by castling $1 A rare and special
+opportunity $1} 1-0
+
+[Event "Rook Odds game"]
+[Site "New Orleans, LA USA"]
+[Date "1849.??.??"]
+[EventDate "?"]
+[Round "?"]
+[Result "1-0"]
+[White "Paul Morphy"]
+[Black "Charles Le Carpentier"]
+[ECO "000"]
+[WhiteElo "?"]
+[BlackElo "?"]
+[PlyCount "25"]
+[SetUp "1"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w Kkq - 0 1"]
+
+1.e4 e5 2.Nf3 Nc6 3.d4 exd4 4.Bc4 Bb4+ 5.c3 dxc3 6.O-O cxb2 7.Bxb2 Bf8 8.e5
+d6 9.Re1 dxe5 10.Nxe5 Qxd1 11.Bxf7+ Ke7 12.Ng6+ Kxf7 13.Nxh8# 1-0
+[Event "Charity Odds Match"]
+[Site "London ENG"]
+[Date "2001.04.22"]
+[Round "3"]
+[White "Chapman, Terry P D"]
+[Black "Kasparov, Garry"]
+[Result "1-0"]
+[BlackElo "2827"]
+[FEN "rnbqkbnr/2pppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[PlyCount "73"]
+[SetUp "1"]
+
+1. e4 Bb7 2. d3 e6 3. Nf3 d6 4. g3 g6 5. Bg2 Bg7 6. O-O Ne7 7. Nc3 O-O 8.
+Be3 h6 9. h4 Nd7 10. Qd2 Kh7 11. Rfe1 Qc8 12. a4 f5 13. Nd4 Nf6 14. exf5
+Bxg2 15. fxg6+ Nxg6 16. Kxg2 c5 17. Nde2 d5 18. h5 Ne5 19. d4 Neg4 20.
+Qd3+ Kg8 21. Qg6 e5 22. Bxh6 Nxh6 23. dxe5 Nd7 24. Nf4 Rxf4 25. gxf4 Nf8
+26. Qg3 Nf5 27. Qh3 Qe6 28. Nb5 Rd8 29. a5 Qf7 30. a6 Ne6 31. Kg1 Nxf4 32.
+Qg4 Nh6 33. Qh4 Kh7 34. a7 Rg8 35. a8=Q Bxe5+ 36. Kf1 Rg4 37. Qxg4 1-0
+
+[Event "Charity Odds Match"]
+[Site "London ENG"]
+[Date "2001.04.22"]
+[Round "4"]
+[White "Kasparov, Garry"]
+[Black "Chapman, Terry P D"]
+[Result "1-0"]
+[WhiteElo "2827"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PPP1PPP/RNBQKBNR w KQkq - 0 1"]
+[PlyCount "47"]
+[SetUp "1"]
+
+1. f4 Nf6 2. Nf3 e6 3. g3 b6 4. Bg2 Bb7 5. O-O Be7 6. d3 O-O 7. Nbd2 d6 8.
+h3 c5 9. g4 Qd7 10. Qe2 Nc6 11. c3 Rae8 12. Nc4 Qc7 13. Nfd2 b5 14. Ne3
+Bd8 15. g5 Nd5 16. Ne4 Nxe3 17. Bxe3 a5 18. Rf2 Kh8 19. Qh5 Nb8 20. Nxd6
+Qxd6 21. Bxb7 Nc6 22. g6 fxg6 23. Qxc5 Qxd3 24. Bxc6 1-0
+
+[Event "Charity Odds Match"]
+[Site "London ENG"]
+[Date "2001.04.21"]
+[Round "2"]
+[White "Kasparov, Garry"]
+[Black "Chapman, Terry P D"]
+[Result "1/2-1/2"]
+[WhiteElo "2827"]
+[Opening "KP"]
+[Variation "Nimzovich defence"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PP1PPPP/RNBQKBNR w KQkq - 0 1"]
+[PlyCount "68"]
+[SetUp "1"]
+
+1. e4 Nc6 2. g3 e6 3. Bg2 Nf6 4. f4 d5 5. e5 Nd7 6. Nf3 Bc5 7. c3 a6 8.
+Nbd2 Ne7 9. b4 Ba7 10. Nd4 Bxd4 11. cxd4 Nf5 12. Nf3 Nb6 13. Bf1 Bd7 14.
+Bd3 Bb5 15. Bb1 Nc4 16. Kf2 b6 17. Qb3 Qe7 18. Re1 Rc8 19. Rd1 Kf8 20. g4
+Nh4 21. f5 Nxf3 22. Qxf3 h5 23. g5 Ke8 24. Qc3 Kd7 25. Rg1 Kc6 26. f6 gxf6
+27. gxf6 Qf8 28. Rg7 h4 29. Bd3 Kb7 30. Bf4 Ra8 31. h3 Qe8 32. Be2 Qf8 33.
+Qb3 Ra7 34. Qc3 Ka8 1/2-1/2
+
+[Event "Charity Odds Match"]
+[Site "London ENG"]
+[Date "2001.04.21"]
+[Round "1"]
+[White "Chapman, Terry P D"]
+[Black "Kasparov, Garry"]
+[Result "0-1"]
+[BlackElo "2827"]
+[Opening "Queen's pawn game"]
+[FEN "rnbqkbnr/1pppppp1/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[PlyCount "74"]
+[SetUp "1"]
+
+1. Nf3 d5 2. d4 c6 3. c3 Bf5 4. Bf4 Nd7 5. e3 Qb6 6. b3 Ngf6 7. Bd3 g6 8.
+Qc2 e6 9. Nbd2 Nh5 10. O-O Nxf4 11. exf4 Qc7 12. Ne5 Bxd3 13. Qxd3 g5 14.
+fxg5 Nxe5 15. dxe5 Qxe5 16. Nf3 Qf4 17. Qd4 Qxd4 18. Nxd4 Ba3 19. Ne2 Ke7
+20. g3 Bb2 21. Rad1 Rxa2 22. Rd2 Rha8 23. Kg2 c5 24. h4 b5 25. h5 Kf8 26.
+Kf3 R8a3 27. Kg4 Rxb3 28. Nc1 Ra4+ 29. f4 Bxc1 30. Rxc1 Kg7 31. h6+ Kh7
+32. Kh5 b4 33. cxb4 Rxg3 34. bxc5 Rxf4 35. Rh2 f6 36. gxf6 Rxf6 37. Kh4
+Rg8 0-1
+

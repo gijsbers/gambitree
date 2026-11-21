@@ -1,0 +1,41 @@
+[Event "Biel GM"]
+[Site "Biel"]
+[Date "2007.07.31"]
+[EventDate "2007.07.23"]
+[Round "7"]
+[White "Carlsen, Magnus"]
+[Black "Pelletier, Yannick"]
+[Result "0-1"]
+[PlyCount "96"]
+[ECO "E32"]
+[WhiteElo "2710"]
+[BlackElo "2591"]
+[Annotator "Pelletier"]
+[SourceTitle "CBM 120"]
+[Source "ChessBase"]
+[SourceDate "2007.10.2"]
+[SourceVersionDate "2007.10.2"]
+[SourceVersion "1"]
+[SourceQuality "1"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 8. e3 c5 9. dxc5 bxc5 10. Ne2 a5 11. Bxf6 $6 (;Dieser Tausch war später unter besseren Bedingungen möglich. Nach
+11. f3 d6 12. O-O-O ;sollte Schwarz
+12... Ra6;ziehen. Dies war die Idee hinter meinem 10. Zug: d6 muss gedeckt werden, damit auf Lxf6 wie in der Partie Dxf6 geschehen kann. Denselben Turmzug hätte ich auch nach dem sofortigen 11. 0-0-0 gespielt.
+ ) 11... Qxf6 12. Qxf6 gxf6 13. O-O-O Rd8 14. Nc3 d6 (14... Kf8 $2 15. Na4 ) 15. Bd3 Kf8;Schwarz braucht seinen König auf e7, um die Drohung 16. ¥e4 ¥xe4 17. ¤xe4 zu entschärfen.
+ 16. Bxh7 (;Dieser Zug ist die Ursache der weissen Schwierigkeiten. Carlsen dachte lange nach und schätzte die Stellung als ausgeglichen ein. Deshalb versuchte er dieses originelle Figurenopfer. Nach
+16. Be4 Bxe4 17. Nxe4 Ke7 $10;und
+ ) (16. Rd2 Ke7 17. Rhd1 Ra6 18. f3 h6 $10;hat Schwarz in der Tat keine Probleme.
+ ) 16... f5 17. e4 Kg7 18. exf5 Kxh7 19. fxe6 fxe6 20. Rhe1;Weiss gewinnt den e-Bauern zwangsläufig (20. ... e5? 21. ¦xe5), wonach er 3 Bauern für die Figur besitzt. Zum Glück kann Schwarz g2 erobern, sodass die weissen Bauern ungefährlich sind.
+ 20... Bxg2 21. Ne4 $2 (;Carlsen übersah einfach meinen 22. Zug! Sonst hätte er sich wohl mit
+21. Rxe6 Nc6 22. Rdxd6 Rxd6 23. Rxd6;zufrieden gegeben. Schwarz kann in diesem Endspiel mittels
+ 23... Rf8 (23... Rd8 24. Rxd8 Nxd8 $10 ) 24. Na4 Rf5 $15;/=
+ ;auf einen leichten Vorteil hoffen, aber das natürliche Ergebnis sollte natürlich Remis sein.
+ ) 21... Bxe4 22. Rxe4;(… 23.¦g1, 24.¦h4)
+ 22... Ra7 $1 {[%cal Ga7g7]} 23. Rxe6 Rad7;Schwarz behält hiermit seinen Materialvorteil.
+ 24. Rd3 Nc6 25. Rh3+ Kg8 26. Rhh6 Ne5 27. f4 (;Ein tückischer Versuch, die restlichen schwarzen Bauern zu eliminieren, sei es zum Preis aller weissen Bauern.
+27. b3 Kg7;verliert auf die Distanz.
+ ) 27... Nxc4 28. b3 Nxa3 29. Rhg6+ (29. Reg6+ Rg7 30. Rxd6 Rxd6 31. Rxd6 Nb5 $1 $19 ) 29... Kh8 30. Rh6+ Kg8 31. Rhg6+ Kh8 32. Rh6+ Rh7 33. Rxd6 Rxd6 34. Rxd6 Rxh2 35. Ra6 (35. Rc6 Rc2+ 36. Kd1 Rc3 $19 ) 35... Nb5 36. Rxa5 Nd4;Knapp scheitert die weisse Absicht. Der Bauer c5 ist wegen der Gabel auf b3 tabu.
+ 37. Kb1 (37. Ra8+ Kg7 38. Rb8 Kf6 39. b4 c4 40. Rc8 Rc2+ 41. Kd1 c3 42. b5 Rd2+ 43. Ke1 Re2+ 44. Kf1 c2 $19 ) (37. Ra3 Kg7 38. Kb1 Kf6 ) 37... Nxb3 38. Rb5 c4;Wieder ist die schwarze Aufstellung perfekt: ¦xc4 kann wegen ¤d2+ nie geschehen.
+ 39. f5 Kg7 40. f6+ (40. Rb6 Rf2 41. Rb7+ Kf6 42. Rb6+ Ke5 $19 ) 40... Kxf6 41. Rf5+;Carlsen versucht es noch mit einem Patttrick, aber der schwarz König entschwindet auf die 2. Reihe.
+ 41... Ke6 42. Re5+ Kd6 43. Rd5+ Kc6 44. Rd6+ Kc5 45. Rc6+ Kd5 46. Rd6+ Ke4 47. Re6+ Kd3 48. Re3+ Kd2 0-1
+

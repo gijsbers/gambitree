@@ -1,0 +1,26 @@
+[Event "Adversarial variations"]
+[Site "Local"]
+[Date "2026.09.17"]
+[Round "1"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+{root comment}
+1. e4 {main}
+(
+  1. d4 $5 d5
+  (
+    1... Nf6 {nested comment}
+    2. c4 $1 e6
+    (
+      2... g6 {third level}
+    )
+  )
+  2. c4
+)
+e5 $1
+(
+  1... c5 {sibling variation}
+)
+2. Nf3 *
