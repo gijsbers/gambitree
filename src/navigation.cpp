@@ -18,6 +18,8 @@ bool is_mainline_end(const PgnGame& game, const MoveNode* node)
 MoveNavigator::MoveNavigator(const PgnGame& game)
     : game_(&game), current_(game.root)
 {
+    if (game.parse_status != PGN_COMPLETE && game.error_position)
+        select(game.error_position);
 }
 
 const MoveNode* MoveNavigator::current() const

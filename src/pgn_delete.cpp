@@ -552,6 +552,10 @@ bool pgn_delete_range(const std::string& path,
         return false;
     }
     if (remove_file) {
+        if (begin != 0 || end != baseline.size) {
+            result.message = "The complete file must be verified before it can be removed.";
+            return false;
+        }
         std::string directory;
         std::string filename;
         int directory_fd;

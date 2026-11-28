@@ -266,6 +266,23 @@ void test_scratch_paths()
                 "each test run gets a distinct directory under its requested scratch parent");
     expect_true(test_paths::make_directory("child", parent + "/absent").empty(),
                 "unusable scratch roots fail without silently writing elsewhere");
+    if (!first.empty() && !second.empty()) {
+        const std::string nested = first + "/captures";
+        expect_true(mkdir(nested.c_str(), 0700) == 0, "create nested scratch captures");
+        { std::ofstream file((nested + "/.capture").c_str()); file << "capture"; }
+        { std::ofstream file((second + "/keep").c_str()); file << "outside scratch tree"; }
+        expect_true(symlink(second.c_str(), (first + "/linked-directory").c_str()) == 0 &&
+                    symlink((second + "/absent").c_str(), (first + "/broken-link").c_str()) == 0,
+                    "create scratch links without adding external test files");
+        expect_true(test_paths::remove_tree(first) && access(first.c_str(), F_OK) != 0,
+                    "scratch cleanup removes nested captures, hidden files and symbolic links");
+        std::ifstream kept((second + "/keep").c_str());
+        std::string contents;
+        std::getline(kept, contents);
+        expect_true(contents == "outside scratch tree",
+                    "scratch cleanup never follows links outside its owned directory");
+        expect_true(test_paths::remove_tree(second), "remove the isolated cleanup reference directory");
+    }
     rmdir(first.c_str()); rmdir(second.c_str()); rmdir(parent.c_str());
 }
 
@@ -649,17 +666,18 @@ void test_san()
     position = Position::standard();
     expect_true(!position.parse_san("Qz7", move), "invalid SAN rejected");
     expect_true(!position.parse_san("e5", move), "illegal SAN rejected");
-    expect_true(!position.parse_san("e4+", move), "incorrect SAN check suffix rejected");
+    expect_true(position.parse_san("e4+", move) && position.san(move) == "e4",
+                "incorrect check annotation does not invalidate a legal quiet move");
     position = position_from_fen("r2k3r/ppp2p2/2p4p/5b2/2P2P2/2P5/P5PP/R3KB1R w KQ - 0 14");
     expect_true(position.parse_san("O-O-O", move) && position.san(move) == "O-O-O+",
                 "a legal ChessBase long castle may omit its terminal check marker");
-    expect_true(!position.parse_san("O-O-O#", move),
-                "an explicitly incorrect mate marker remains rejected");
+    expect_true(position.parse_san("O-O-O#", move) && position.san(move) == "O-O-O+",
+                "an incorrect mate annotation does not invalidate a legal checking castle");
     position = position_from_fen("r2k3r/pp3pbp/2p2np1/4pb2/2P5/BPN1P3/P3BPPP/R3K2R w KQ - 2 12");
     expect_true(position.parse_san("O-O-O", move) && position.san(move) == "O-O-O+",
-                "the second reported Cifuentes long castle accepts only the omitted plus");
-    expect_true(!position.parse_san("O-O-O#", move),
-                "the second reported position also rejects a false mate marker");
+                "the second reported Cifuentes long castle accepts the omitted plus");
+    expect_true(position.parse_san("O-O-O#", move) && position.san(move) == "O-O-O+",
+                "the second reported position also tolerates a false mate annotation");
     expect_true(position.parse_san("O-O-O", move) && position.make_move(move, undo) &&
                 position.to_fen() ==
                     "r2k3r/pp3pbp/2p2np1/4pb2/2P5/BPN1P3/P3BPPP/2KR3R b - - 3 12",
@@ -684,8 +702,8 @@ void test_san()
     expect_true(position.san(move) == "Qh4#", "SAN checkmate generation");
     expect_true(position.parse_san("Qh4", move),
                 "a legal mating move may omit its terminal mate marker in source SAN");
-    expect_true(!position.parse_san("Qh4+", move),
-                "a check marker is not accepted when the legal move is checkmate");
+    expect_true(position.parse_san("Qh4+", move) && position.san(move) == "Qh4#",
+                "a check annotation is tolerated when the legal move is checkmate");
     position = position_from_fen("4k3/8/8/8/8/8/4R3/K7 w - - 0 1");
     expect_true(!position.parse_san("Rxe8#", move), "SAN cannot capture the opposing king");
 
@@ -758,6 +776,504 @@ void test_san()
 }
 
 MoveNode* child(MoveNode* node, std::size_t index, const char* description);
+
+
+void test_missing_pawn_capture_file()
+{
+    using namespace gambitree;
+    const char* before = "1r1q3r/p2b1pk1/1p1p1np1/n1pP2Bp/1RPN1Q2/2P3P1/P4PBP/5RK1 w - c6 0 22";
+    const char* after = "1r1q3r/p2b1pk1/1pPp1np1/n5Bp/1RPN1Q2/2P3P1/P4PBP/5RK1 b - - 0 22";
+    const char* final = "8/p1r3k1/1p1p4/3B1R2/2P5/2P5/r6P/1R4K1 b - - 0 39";
+    struct Case { const char* fen; const char* supplied; const char* canonical; };
+    const Case cases[] = {
+        { before, "xc6", "dxc6" }, { before, "xc6+", "dxc6" },
+        { before, "xc6#", "dxc6" }, { before, "dxc6", "dxc6" },
+        { "4k3/8/8/4p3/3P4/8/8/4K3 w - - 0 1", "xe5", "dxe5" },
+        { "4k3/8/8/4p3/3P4/8/8/4K3 w - - 0 1", "xe5#", "dxe5" },
+        { "4k3/8/8/4p3/5P2/8/8/4K3 b - - 0 1", "xf4", "exf4" },
+        { "4k3/8/8/4p3/3P1P2/8/8/4K3 w - - 0 1", "xe5", 0 },
+        { "4k3/8/8/4p3/3P4/5N2/8/4K3 w - - 0 1", "xe5", 0 },
+        { "k2r4/8/8/4p3/3P1P2/8/8/3K4 w - - 0 1", "xe5", "fxe5" },
+        { "4k3/8/2p5/8/1N6/8/8/4K3 w - - 0 1", "xc6", 0 },
+        { "1r1q3r/p2b1pk1/1p1p1np1/n1pP2Bp/1RPN1Q2/2P3P1/P4PBP/5RK1 w - - 0 22", "xc6", 0 },
+        { "8/8/8/KPp4r/8/8/8/4k3 w - c6 0 1", "xc6", 0 },
+        { "1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1", "xb8=Q#", "axb8=Q+" },
+        { "1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1", "xb8", 0 },
+        { "1r2k3/P7/8/8/8/8/8/4K3 w - - 0 1", "xb8=K", 0 },
+        { before, "xc6++", 0 }, { before, "xxc6", 0 }, { before, "c6", 0 }
+    };
+    for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        Position position;
+        expect_true(Position::from_fen(cases[i].fen, position, 0), "missing-file test has a valid initial FEN");
+        const std::string unchanged = position.to_fen();
+        Move move;
+        const bool accepted = position.parse_san(cases[i].supplied, move);
+        expect_true(accepted == (cases[i].canonical != 0) && position.to_fen() == unchanged,
+              "a missing pawn file requires exactly one legal capture, including competing piece captures");
+        if (accepted) {
+            expect_true(position.san(move) == cases[i].canonical && (move.flags & MOVE_CAPTURE) &&
+                  (position.piece_at(move.from) == WHITE_PAWN || position.piece_at(move.from) == BLACK_PAWN),
+                  "the unique candidate is a pawn capture with unchanged canonical SAN and promotion rules");
+            Undo undo;
+            expect_true(position.make_move(move, undo), "the recognized pawn capture is executable");
+            if (i < 4)
+                expect_true((move.flags & MOVE_EN_PASSANT) && move.from == Position::square_from_string("d5") &&
+                      move.to == Position::square_from_string("c6") && position.to_fen() == after &&
+                      position.piece_at(Position::square_from_string("d5")) == EMPTY &&
+                      position.piece_at(Position::square_from_string("c5")) == EMPTY &&
+                      position.piece_at(Position::square_from_string("c6")) == WHITE_PAWN,
+                      "en passant moves d5 to c6, removes c5 and reaches the exact reference FEN");
+            position.unmake_move(undo);
+            expect_true(position.to_fen() == unchanged, "undo restores the complete pre-capture position");
+        }
+
+    }
+    std::ifstream source("tests/data/lima-souza-2024-missing-pawn-file.pgn", std::ios::binary);
+    const std::string original((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+    std::string corrected = original;
+    const std::size_t replacement = corrected.find("22. xc6");
+    expect_true(!original.empty() && replacement != std::string::npos, "load the untouched reported regression game");
+    if (replacement == std::string::npos) return;
+    corrected.replace(replacement, 7, "22. dxc6");
+    PgnDocument raw, canonical;
+    expect_true(PgnParser::parse(original, raw) && raw.games.size() == 1 && raw.errors.empty(),
+          "the entire reported game parses without an invalid SAN error");
+    expect_true(PgnParser::parse(corrected, canonical) && canonical.games.size() == 1 && canonical.errors.empty(),
+          "a copy changing only xc6 to dxc6 also parses");
+    if (raw.games.size() != 1 || canonical.games.size() != 1) return;
+    std::ifstream references("tests/data/lima-souza-2024-fens.txt");
+    const MoveNode* a = raw.games[0]->root;
+    const MoveNode* b = canonical.games[0]->root;
+    std::string fen;
+    int plies = 0;
+    while (std::getline(references, fen)) {
+        if (fen.empty() || fen[0] == '#') continue;
+        if (a->children.empty() || b->children.empty()) { expect_true(false, "both games retain every reference ply"); break; }
+        a = a->children[0]; b = b->children[0]; ++plies;
+        expect_true(a->position_after.to_fen() == fen && b->position_after.to_fen() == fen &&
+              a->move.from == b->move.from && a->move.to == b->move.to &&
+              a->move.flags == b->move.flags && a->move.promotion == b->move.promotion,
+              "original and corrected games have identical moves and independent python-chess FENs at every ply");
+        if (plies == 43)
+            expect_true(a->san == "xc6" && b->san == "dxc6" && (a->move.flags & MOVE_EN_PASSANT) &&
+                  a->parent->position_after.to_fen() == before && a->position_after.to_fen() == after,
+                  "the original en-passant spelling is preserved independently of its internal move");
+    }
+    expect_true(plies == 77 && a->children.empty() && b->children.empty() &&
+          a->position_after.to_fen() == final && b->position_after.to_fen() == final,
+          "both complete games have exactly 77 legal plies and the independently verified final FEN");
+
+    const std::string setup = std::string("[SetUp \"1\"]\n[FEN \"") + before + "\"]\n\n";
+    PgnDocument rav;
+    expect_true(PgnParser::parse(setup + "22. dxc6 (22. xc6 Bxc6 23. Nxc6 Nxc6) Bxc6 23. Nxc6 Nxc6 *\n\n"
+                          "[Event \"Following\"]\n\n1. e4 e5 *\n", rav) &&
+          rav.games.size() == 2 && rav.errors.empty() && rav.games[0]->root->children.size() == 2,
+          "an omitted pawn file inside a RAV preserves its mainline and the following game");
+    if (rav.games.size() == 2 && rav.games[0]->root->children.size() == 2) {
+        for (int branch = 0; branch < 2; ++branch) {
+            const MoveNode* node = rav.games[0]->root->children[branch];
+            expect_true(node->parent == rav.games[0]->root && node->san == (branch ? "xc6" : "dxc6") &&
+                  node->position_after.to_fen() == after && (node->move.flags & MOVE_EN_PASSANT),
+                  "both alternative captures retain their source SAN, parent and en-passant state");
+            int count = 1;
+            while (!node->children.empty()) { node = node->children[0]; ++count; }
+            expect_true(count == 4 && node->position_after.to_fen() == "1r1q3r/p4pk1/1pnp1np1/6Bp/1RP2Q2/2P3P1/P4PBP/5RK1 w - - 0 24",
+                  "mainline and RAV resume independently through the same four legal plies");
+        }
+    }
+    PgnLibrary library;
+    std::vector<std::string> paths(1, "tests/data/lima-souza-2024-missing-pawn-file.pgn"), errors;
+    std::string error;
+    expect_true(library.load(paths, errors), "the reported game opens through the viewer library");
+    while (!library.indexing_complete()) library.step_indexing(100, errors);
+    expect_true(library.materialize_current(error) && library.current_game()->parse_status == PGN_COMPLETE,
+          "the viewer now loads the complete game instead of its former 42-ply prefix");
+    if (!library.current_game()) return;
+    const MoveNode* ep = library.current_game()->root;
+    for (int i = 0; i < 43 && !ep->children.empty(); ++i) ep = ep->children[0];
+    MoveNavigator navigation(*library.current_game());
+    expect_true(navigation.select(ep) && ep->san == "xc6" && navigation.position().to_fen() == after &&
+          navigation.back() && navigation.position().to_fen() == before &&
+          navigation.forward() && navigation.current() == ep,
+          "viewer selection and navigation retain the source-spelled en-passant move and exact positions");
+    navigation.to_end();
+    expect_true(navigation.position().to_fen() == final, "viewer navigation reaches the full 77-ply final position");
+    for (int figurines = 0; figurines < 2; ++figurines) {
+        NotationLayout layout;
+        layout.set_figurines(figurines != 0);
+        layout.build(*library.current_game(), 320, NotationFontMetrics());
+        bool displayed = false;
+        for (std::size_t i = 0; i < layout.items().size(); ++i) {
+            const NotationItem& item = layout.items()[i];
+            if (item.kind == NOTATION_MOVE && item.node == ep)
+                displayed = item.text == "xc6" && layout.hit_test(item.x + item.width / 2, item.y + 1, 0) == ep &&
+                    !layout.selection_rects(ep).empty();
+        }
+        expect_true(displayed, "the original pawn capture remains visible and selectable with and without figurines");
+    }
+}
+
+void test_lan()
+{
+    using namespace gambitree;
+    std::ifstream lan_file("tests/data/spice-cup-2025-lan.pgn", std::ios::binary);
+    std::ifstream san_file("tests/data/spice-cup-2025-san-fens.pgn", std::ios::binary);
+    const std::string lan_text((std::istreambuf_iterator<char>(lan_file)), std::istreambuf_iterator<char>());
+    const std::string san_text((std::istreambuf_iterator<char>(san_file)), std::istreambuf_iterator<char>());
+    PgnDocument lan, san;
+    expect_true(!lan_text.empty() && PgnParser::parse(lan_text, lan) && lan.games.size() == 2 &&
+          lan.errors.empty(), "both complete reported LAN games parse without errors");
+    expect_true(!san_text.empty() && PgnParser::parse(san_text, san) && san.games.size() == 2 &&
+          san.errors.empty(), "independent canonical SAN/FEN references parse");
+    const int counts[] = {25, 26};
+    const char* finals[] = {
+        "rnbqr1k1/5pbp/3p1np1/p1pP4/Pp2P3/1P1B1N2/1B1N1PPP/R2Q1RK1 b - - 2 13",
+        "r4rk1/2pqbppp/2npbn2/1p1Np3/4P3/1BPP1N2/1P3PPP/R1BQR1K1 w - - 3 14"
+    };
+    if (lan.games.size() == 2 && san.games.size() == 2) for (std::size_t g = 0; g < 2; ++g) {
+        const MoveNode* l = lan.games[g]->root;
+        const MoveNode* s = san.games[g]->root;
+        int plies = 0;
+        while (!l->children.empty() && !s->children.empty()) {
+            l = l->children[0]; s = s->children[0]; ++plies;
+            expect_true(s->comments.size() == 1, "every SAN reference move has a fixed independent FEN comment");
+            std::istringstream words(s->comments.size() == 1 ? s->comments[0] : "");
+            std::string expected, word;
+            while (words >> word) { if (!expected.empty()) expected += ' '; expected += word; }
+            expect_true(l->position_after.to_fen() == expected && s->position_after.to_fen() == expected &&
+                  l->move.from == s->move.from && l->move.to == s->move.to &&
+                  l->move.flags == s->move.flags && l->move.promotion == s->move.promotion,
+                  "LAN and SAN agree with the independent fixed FEN and exact move after every ply");
+            expect_true((l->parent->has_move ? l->parent->position_after : lan.games[g]->initial_position).san(l->move) == s->san,
+                  "LAN acceptance leaves conventional SAN generation unchanged");
+            if (plies == 1) expect_true(l->san == (g ? "e2e4" : "d2d4"),
+                                  "the original LAN source notation is retained");
+        }
+        expect_true(plies == counts[g] && l->children.empty() && s->children.empty() &&
+              l->position_after.to_fen() == finals[g] && lan.games[g]->result == san.games[g]->result,
+              "reported games have exactly 25/26 plies, independent final FENs and unchanged results");
+        PgnLibrary library;
+        std::vector<std::string> paths(1, "tests/data/spice-cup-2025-lan.pgn"), errors;
+        std::string error;
+        expect_true(library.load(paths, errors), "LAN fixture opens through the indexed viewer library");
+        while (!library.indexing_complete()) library.step_indexing(100, errors);
+        const bool loaded = library.select_game(g) && library.materialize_current(error);
+        expect_true(loaded && library.game_count() == 2,
+                    "both LAN games materialize through the actual lazy viewer load path");
+        if (loaded) {
+            MoveNavigator cursor(*library.current_game()); cursor.to_end();
+            expect_true(cursor.position().to_fen() == finals[g], "indexed LAN replay retains the exact final FEN");
+        }
+        MoveNavigator navigator(*lan.games[g]);
+        navigator.to_end();
+        expect_true(navigator.current() == l && navigator.position().to_fen() == finals[g],
+              "viewer navigation reaches the exact original LAN end node and FEN");
+        navigator.to_begin();
+        int navigated = 0;
+        while (navigator.forward()) ++navigated;
+        expect_true(navigated == counts[g] && navigator.current() == l,
+              "viewer can replay every LAN move including captures and castling");
+        for (int figurines = 0; figurines < 2; ++figurines) {
+            NotationLayout layout;
+            layout.set_figurines(figurines != 0);
+            layout.build(*lan.games[g], 300, NotationFontMetrics());
+            bool first = false;
+            for (std::size_t i = 0; i < layout.items().size(); ++i) {
+                const NotationItem& item = layout.items()[i];
+                if (item.kind != NOTATION_MOVE || item.node != lan.games[g]->root->children[0]) continue;
+                first = item.text == (g ? "e2e4" : "d2d4") &&
+                    layout.hit_test(item.x + item.width / 2, item.y + 1, 0) == item.node;
+            }
+            expect_true(first, "LAN remains visible verbatim with correct hitboxes in letter and figurine modes");
+        }
+    }
+
+    struct Case { const char* fen; const char* text; const char* canonical; };
+    const Case cases[] = {
+        {0, "d2d4", "d4"}, {0, "Pd2d4", "d4"}, {0, "d2-d4", "d4"},
+        {0, "Ng1f3", "Nf3"}, {0, "g1f3", "Nf3"}, {0, "Ng1-f3#", "Nf3"},
+        {0, "e2e4+", "e4"}, {0, "Nb1c3", "Nc3"},
+        {"4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1", "e4xd5", "exd5"},
+        {"4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1", "Pe4xd5#", "exd5"},
+        {"4k3/8/8/3p4/8/2N5/8/4K3 w - - 0 1", "Nc3xd5", "Nxd5"},
+        {"4k3/8/8/3p4/8/2N5/8/4K3 w - - 0 1", "c3xd5+", "Nxd5"},
+        {"7k/1P6/8/8/8/8/8/7K w - - 0 1", "b7b8=Q#", "b8=Q+"},
+        {"7k/1P6/8/8/8/8/8/7K w - - 0 1", "Pb7-b8=N+", "b8=N"},
+        {"k6r/6P1/8/8/8/8/8/7K w - - 0 1", "g7xh8=Q", "gxh8=Q+"},
+        {"k6r/6P1/8/8/8/8/8/7K w - - 0 1", "Pg7xh8=N#", "gxh8=N"},
+        {"4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 10", "e5xd6+", "exd6"},
+        {"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "O-O", "O-O"},
+        {"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "Ke1g1", "O-O"},
+        {"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "e1c1", "O-O-O"},
+        {0, "d2d5", 0}, {0, "d2xd4", 0}, {0, "e3e4", 0},
+        {0, "Ne2e4", 0}, {0, "Bd2d4", 0}, {0, "Ng8f6", 0},
+        {0, "Bc1h6", 0}, {0, "b1d2", 0}, {0, "Ke1g1", 0},
+        {"4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1", "e4d5", 0},
+        {"4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1", "e4-d5", 0},
+        {"k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", "Re2f2", 0},
+        {"k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", "e2f2", 0},
+        {"4r1k1/8/8/8/8/8/8/R3K3 w Q - 0 1", "Ra1a2", 0},
+        {"7k/1P6/8/8/8/8/8/7K w - - 0 1", "b7b8", 0},
+        {"7k/1P6/8/8/8/8/8/7K w - - 0 1", "b7b8=K", 0},
+        {0, "d2d4++", 0}, {0, "Qd2d4", 0}, {0, "d9d4", 0}
+    };
+    for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        Position position = Position::standard();
+        if (cases[i].fen) expect_true(Position::from_fen(cases[i].fen, position, 0), "LAN test FEN is valid");
+        const std::string before = position.to_fen();
+        Move move;
+        const bool valid = position.parse_san(cases[i].text, move);
+        expect_true(valid == (cases[i].canonical != 0), "LAN accepts exactly legal, correctly specified moves");
+        std::string after;
+        if (valid) {
+            expect_true(position.san(move) == cases[i].canonical, "LAN resolves to the expected canonical SAN move");
+            Undo undo;
+            const bool made = position.make_move(move, undo);
+            expect_true(made, "a parsed LAN move passes ordinary move application");
+            if (made) { after = position.to_fen(); position.unmake_move(undo); }
+        }
+        expect_true(position.to_fen() == before, "LAN lookup and undo leave the source position unchanged");
+        std::ostringstream game_text;
+        game_text << "[SetUp \"1\"]\n[FEN \"" << before << "\"]\n\n"
+                  << position.fullmove_number() << ". " << cases[i].text << " *";
+        PgnDocument one;
+        const bool parsed = PgnParser::parse(game_text.str(), one);
+        expect_true(parsed == valid, "LAN tokenization preserves the same legality as direct move parsing");
+        if (parsed && one.games.size() == 1 && !one.games[0]->root->children.empty()) {
+            const MoveNode* node = one.games[0]->root->children[0];
+            expect_true(node->san == cases[i].text && node->position_after.to_fen() == after,
+                  "LAN tokenization and tree construction preserve exact source text and final position");
+        }
+
+
+    }
+    PgnDocument rav;
+    expect_true(PgnParser::parse("1. d2d4 (1. e2e4 e7e5 (1... c7c5 2. Ng1f3) 2. Ng1f3 Nb8c6) "
+                           "Ng8f6 2. c2c4 e7e6 *", rav) && rav.games.size() == 1,
+          "LAN parses through nested RAVs and resumes the main line");
+    if (rav.games.size() == 1) {
+        const MoveNode* root = rav.games[0]->root;
+        expect_true(root->children.size() == 2 && root->children[1]->children.size() == 2,
+              "LAN preserves the exact nested variation topology");
+        const MoveNode* main = root;
+        while (!main->children.empty()) main = main->children[0];
+        expect_true(main->position_after.to_fen() ==
+              "rnbqkb1r/pppp1ppp/4pn2/8/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3",
+              "LAN RAV processing restores the correct parent mainline position");
+        if (root->children.size() == 2 && root->children[1]->children.size() == 2) {
+            const MoveNode* branch = root->children[1];
+            const MoveNode* nested = branch->children[1];
+            expect_true(nested->children.size() == 1 && nested->children[0]->position_after.to_fen() ==
+                  "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+                  "the nested LAN RAV keeps its independent exact position");
+            while (!branch->children.empty()) branch = branch->children[0];
+            expect_true(branch->position_after.to_fen() ==
+                  "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+                  "LAN also resumes the enclosing RAV after its nested alternative");
+        }
+    }
+    PgnDocument nulls;
+    expect_true(PgnParser::parse("1. e2e4 -- 2. Ng1f3 (2. d2d4) -- 3. Bf1c4 *", nulls) &&
+          nulls.games.size() == 1, "LAN interoperates with analytical null moves and RAVs");
+    if (nulls.games.size() == 1) {
+        const MoveNode* node = nulls.games[0]->root;
+        int plies = 0;
+        while (!node->children.empty()) { node = node->children[0]; ++plies; }
+        expect_true(plies == 5 && node->position_after.to_fen() ==
+              "rnbqkbnr/pppppppp/8/8/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 4 3",
+              "null moves in LAN preserve occupancy, turn, clocks and the exact final position");
+    }
+}
+
+void test_san_check_annotations()
+{
+    using namespace gambitree;
+    const char* before = "8/8/8/4B3/2b3p1/6R1/5K2/7k w - - 7 78";
+    const char* after = "8/8/8/4B3/2b3p1/8/5K2/6Rk b - - 8 78";
+    const char* spellings[] = {"Rg1+", "Rg1#", "Rg1", "Rg3g1+", "R3g1#"};
+    for (std::size_t i = 0; i < sizeof(spellings) / sizeof(spellings[0]); ++i) {
+        Position position;
+        Move move;
+        Undo undo;
+        expect_true(Position::from_fen(before, position, 0) &&
+              position.parse_san(spellings[i], move) && position.san(move) == "Rg1#" &&
+              position.make_move(move, undo) && position.to_fen() == after &&
+              position.is_checkmate(),
+              "a legal mating move accepts plus, hash or no annotation with exact FEN and mate");
+    }
+    Position position;
+    Move move;
+    expect_true(Position::from_fen(before, position, 0) &&
+          !position.parse_san("Rh2+", move) && !position.parse_san("Rxg1#", move) &&
+          !position.parse_san("Rhg1+", move) && !position.parse_san("Rg1++", move),
+          "ignoring check annotations does not permit impossible moves, false captures or wrong origins");
+    expect_true(Position::from_fen("4k3/8/8/8/8/2N1N3/8/4K3 w - - 0 1", position, 0) &&
+          !position.parse_san("Nd5+", move) && position.parse_san("Ncd5#", move),
+          "check annotations neither resolve ambiguity nor prevent correct disambiguation");
+    expect_true(Position::from_fen("4k3/8/8/8/8/8/4R3/K7 w - - 0 1", position, 0) &&
+          position.parse_san("Re7+", move) && position.san(move) == "Re7+" &&
+          position.parse_san("Re7#", move) && position.parse_san("Re7", move),
+          "ordinary checks accept correct, incorrect and omitted annotations without changing canonical SAN");
+    position = Position::standard();
+    expect_true(position.parse_san("e4+", move) && position.san(move) == "e4" &&
+          position.parse_san("e4#", move) && !position.parse_san("e5#", move) &&
+          !position.parse_san("e4+#", move),
+          "quiet moves tolerate a check annotation but malformed or illegal move bodies remain invalid");
+
+    const std::string setup = std::string("[SetUp \"1\"]\n[FEN \"") + before + "\"]\n\n";
+    PgnDocument variations;
+    expect_true(PgnParser::parse(setup +
+              "78. Rg1+ (78. Rg1# (78. Rg1)) (78. Rg1) 1-0\n\n"
+              "[Event \"Following game\"]\n\n1. e4# e5+ 2. Nf3 Nc6 *\n", variations) &&
+          variations.games.size() == 2 && variations.errors.empty(),
+          "wrong check annotations in mainline, nested and sibling RAVs preserve the following game");
+    if (variations.games.size() == 2) {
+        MoveNode* root = variations.games[0]->root;
+        expect_true(root->children.size() == 4,
+              "all four independently annotated mating branches are retained");
+        const char* source_san[] = {"Rg1+", "Rg1#", "Rg1", "Rg1"};
+        for (std::size_t i = 0; i < root->children.size(); ++i) {
+            MoveNode* node = root->children[i];
+            expect_true(i < 4 && node->parent == root && node->san == source_san[i] &&
+                  node->position_after.to_fen() == after &&
+                  node->position_after.is_checkmate(),
+                  "each RAV preserves its source SAN, exact parent and mating position");
+        }
+        if (root->children.size() == 4) {
+            expect_true(root->children[1]->following_items.size() == 1 &&
+                  root->children[1]->following_items[0].type == PgnMoveItem::VARIATION &&
+                  root->children[1]->following_items[0].variation_root == root->children[2],
+                  "nested RAV remains attached to the correct source move");
+        }
+        MoveNode* node = variations.games[1]->root;
+        int plies = 0;
+        while (!node->children.empty()) { node = node->children[0]; ++plies; }
+        expect_true(plies == 4 && node->position_after.to_fen() ==
+                  "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+              "the next game has four independent legal plies and the expected FEN");
+    }
+
+    PgnDocument continuation;
+    expect_true(PgnParser::parse(
+        "1. e4# (1. d4+ d5# (1... Nf6+) 2. c4# e6+) e5+ 2. Nf3# Nc6+ *", continuation) &&
+        continuation.games.size() == 1,
+        "inaccurate annotations preserve continuation after nested RAVs");
+    if (continuation.games.size() == 1) {
+        MoveNode* root = continuation.games[0]->root;
+        expect_true(root->children.size() == 2 && root->children[1]->children.size() == 2,
+              "mainline and both black RAV replies retain exact branch structure");
+        MoveNode* main = root;
+        int plies = 0;
+        while (!main->children.empty()) { main = main->children[0]; ++plies; }
+        expect_true(plies == 4 && main->position_after.to_fen() ==
+              "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+              "resuming the mainline after a RAV keeps the exact four-ply position");
+        if (root->children.size() == 2 && root->children[1]->children.size() == 2) {
+            MoveNode* branch = root->children[1];
+            MoveNode* nested = branch->children[1];
+            expect_true(nested->san == "Nf6+" && nested->parent == branch &&
+                  nested->position_after.to_fen() ==
+                  "rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2",
+                  "nested reply uses its own parent position and retains source SAN");
+            int branch_plies = 1;
+            while (!branch->children.empty()) { branch = branch->children[0]; ++branch_plies; }
+            expect_true(branch_plies == 4 && branch->position_after.to_fen() ==
+                  "rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3",
+                  "parent RAV also resumes with its independent exact four-ply position");
+        }
+    }
+
+    std::ifstream input("tests/data/guarin-malagon-2024-mate-suffix.pgn", std::ios::binary);
+    const std::string pgn((std::istreambuf_iterator<char>(input)),
+                           std::istreambuf_iterator<char>());
+    PgnDocument document;
+    expect_true(input.good() && !pgn.empty() && PgnParser::parse(pgn, document) &&
+          document.games.size() == 1 && document.errors.empty(),
+          "the complete reported PGN loads without an invalid-move error");
+    if (document.games.size() == 1) {
+        MoveNode* node = document.games[0]->root;
+        int plies = 0;
+        while (!node->children.empty()) { node = node->children[0]; ++plies; }
+        expect_true(plies == 155 && node->san == "Rg1+" && node->position_after.to_fen() == after &&
+              node->position_after.is_checkmate(),
+              "the reported PGN retains 155 plies, original final SAN and the exact checkmate FEN");
+        MoveNavigator navigator(*document.games[0]);
+        navigator.to_end();
+        expect_true(navigator.current() == node && navigator.position().to_fen() == after &&
+              navigator.back() && navigator.position().to_fen() == before &&
+              navigator.forward() && navigator.current() == node,
+              "navigation reaches and leaves the source-spelled mating move without changing node identity");
+        for (int figurines = 0; figurines < 2; ++figurines) {
+            NotationLayout layout;
+            layout.set_figurines(figurines != 0);
+            layout.build(*document.games[0], 300, NotationFontMetrics());
+            bool displayed = false;
+            for (std::size_t i = 0; i < layout.items().size(); ++i) {
+                const NotationItem& item = layout.items()[i];
+                if (item.kind != NOTATION_MOVE || item.node != node) continue;
+                displayed = item.text == (figurines ? "♖g1+" : "Rg1+") &&
+                    layout.hit_test(item.x + item.width / 2, item.y + 1, 0) == node &&
+                    !layout.selection_rects(node).empty();
+            }
+            expect_true(displayed, "source SAN, figurines, selection and hitboxes retain the mating move");
+        }
+    }
+}
+
+
+void test_san_error_diagnostics()
+{
+    PgnLibrary source;
+    std::vector<std::string> source_paths(1, "tests/data/guarin-malagon-2024-mate-suffix.pgn");
+    std::vector<std::string> source_errors;
+    std::string source_error;
+    expect_true(source.load(source_paths, source_errors), "the reported file opens through the viewer library");
+    while (!source.indexing_complete()) source.step_indexing(100, source_errors);
+    const bool loaded = source.materialize_current(source_error);
+    expect_true(loaded && source.game_count() == 1 && source_errors.empty(),
+                "lazy viewer loading retains the complete reported game");
+    if (loaded) {
+        MoveNavigator navigator(*source.current_game());
+        navigator.to_end();
+        expect_true(navigator.current()->san == "Rg1+" && navigator.position().is_checkmate() &&
+                    navigator.position().to_fen() == "8/8/8/4B3/2b3p1/8/5K2/6Rk b - - 8 78",
+                    "the viewer library and navigator reach the exact reported final checkmate");
+    }
+    std::ifstream input("tests/data/guarin-malagon-2024-mate-suffix.pgn", std::ios::binary);
+    std::string pgn((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    const std::size_t move = pgn.rfind("Rg1+");
+    expect_true(move != std::string::npos, "diagnostic fixture contains the reported move");
+    if (move == std::string::npos) return;
+    pgn.replace(move, 4, "Rh2+");
+    const std::string path = test_scratch_directory + "/gambitree-san-error.pgn";
+    std::ofstream output(path.c_str(), std::ios::binary);
+    output << "[Event \"Valid first game\"]\n\n1. e4 *\n\n" << pgn;
+    output.close();
+    PgnLibrary library;
+    std::vector<std::string> paths(1, path), errors;
+    std::string error;
+    expect_true(library.load(paths, errors), "invalid-move diagnostic file can be indexed");
+    while (!library.indexing_complete()) library.step_indexing(100, errors);
+    expect_true(library.materialize_current(error) && library.select_game(1) &&
+                library.materialize_current(error) && error.empty(),
+                "a real illegal move retains the valid prefix of the second game");
+    const PgnGame* partial = library.current_game();
+    const std::string warning = partial ? partial->parse_warning() : "";
+    expect_true(partial && partial->parse_status == gambitree::PGN_PARTIAL &&
+                partial->parse_error.game_number == 2 && partial->available_plies == 154 &&
+                warning.find("78.White") != std::string::npos &&
+                warning.find("SAN move \"Rh2+\"") != std::string::npos &&
+                warning.find("no unique legal move matches this notation") != std::string::npos &&
+                warning.find("game line 22, column 933") != std::string::npos,
+                "partial-game diagnostics retain human game and move, exact SAN, reason and location");
+    std::remove(path.c_str());
+    PgnDocument document;
+    expect_true(!gambitree::PgnParser::parse(
+        "[SetUp \"1\"]\n[FEN \"8/8/8/4B3/2b3p1/8/5K2/6Rk b - - 8 78\"]\n\n"
+        "78... Kh2# *", document) && document.errors.size() == 1 &&
+        document.errors[0].message.find("78.Black") == 0,
+        "invalid black-move diagnostic uses the actual fullmove number and side from the FEN");
+}
 
 void test_analytical_null_moves()
 {
@@ -6373,6 +6889,230 @@ bool write_file_bytes(const std::string& path, const std::string& bytes)
     return output.good();
 }
 
+void verify_partial_tree(const MoveNode* parent, const Position& before,
+                         std::set<const MoveNode*>& owned)
+{
+    for (std::size_t i = 0; i < parent->children.size(); ++i) {
+        const MoveNode* node = parent->children[i];
+        const bool fresh = owned.insert(node).second;
+        expect_true(fresh && node->has_move && node->parent == parent,
+                    "every retained node has one owner and its exact parent");
+        if (!fresh) continue;
+        Position next = before;
+        Undo undo;
+        const bool legal = node->san == "--" ? next.make_null_move(undo) : next.make_move(node->move, undo);
+        expect_true(legal && next.to_fen() == node->position_after.to_fen(),
+                    "every retained edge is legal and matches its stored full position");
+        verify_partial_tree(node, next, owned);
+    }
+}
+
+void test_partial_games()
+{
+    using namespace gambitree;
+    const std::string damaged = read_file_bytes("tests/data/guarin-malagon-2024-illegal-last-move.pgn");
+    const std::string original = read_file_bytes("tests/data/guarin-malagon-2024-mate-suffix.pgn");
+    std::string expected = original;
+    const std::size_t at = expected.rfind("Rg1+");
+    expect_true(at != std::string::npos, "original mate fixture retains its legitimate final move");
+    if (at == std::string::npos) return;
+    expected.replace(at, 4, "Rh8");
+    expect_true(damaged == expected, "the partial regression changes only the last move to Rh8");
+    const char* before_error = "8/8/8/4B3/2b3p1/6R1/5K2/7k w - - 7 78";
+    PgnDocument strict, view;
+    expect_true(!PgnParser::parse(damaged, strict) && strict.games.empty() && strict.errors.size() == 1,
+                "strict parsing still rejects and discards the illegal game");
+    expect_true(!PgnParser::parse_for_viewing(damaged, view) && view.games.size() == 1 && view.errors.size() == 1,
+                "viewer parsing returns an explicitly partial game while reporting the original error");
+    if (view.games.size() != 1) return;
+    PgnGame& game = *view.games[0];
+    expect_true(game.parse_status == PGN_PARTIAL && game.available_plies == 154 &&
+                game.tag_value("White") && *game.tag_value("White") == "Guarin Fonseca, Nobel Alfredo" &&
+                game.tag_value("PlyCount") && *game.tag_value("PlyCount") == "155" &&
+                game.parse_error.line == 22 && game.parse_error.column == 933,
+                "the partial game retains its headers, 154 available plies and exact source coordinates");
+    const std::string warning = game.parse_warning();
+    expect_true(warning.find("Partially loaded") == 0 && warning.find("78.White") != std::string::npos &&
+                warning.find("\"Rh8\"") != std::string::npos && warning.find("no unique legal move") != std::string::npos &&
+                warning.find("154 preceding plies available") != std::string::npos,
+                "partial warning explains the offending source move and usable prefix");
+    std::set<const MoveNode*> owned;
+    owned.insert(game.root);
+    verify_partial_tree(game.root, game.initial_position, owned);
+    expect_true(owned.size() == 155 && owned.count(game.error_position) == 1 &&
+                game.error_position->children.empty() && game.error_position->san == "Bc4",
+                "only 154 validated moves and the root are owned and navigable");
+    MoveNavigator cursor(game);
+    expect_true(cursor.current() == game.error_position && cursor.position().to_fen() == before_error && !cursor.forward(),
+                "new viewer navigation automatically selects the exact position before 78.Rh8");
+    int backwards = 0, forwards = 0;
+    while (cursor.back()) ++backwards;
+    expect_true(cursor.at_root() && cursor.position().to_fen() == game.initial_position.to_fen(),
+                "normal backwards navigation reaches the original starting position");
+    while (cursor.forward()) ++forwards;
+    expect_true(backwards == 154 && forwards == 154 && cursor.position().to_fen() == before_error,
+                "all 77 legal move pairs can be replayed in both directions");
+    for (int figurines = 0; figurines < 2; ++figurines) for (int width = 240; width <= 500; width += 260) {
+        NotationLayout layout;
+        layout.set_figurines(figurines != 0);
+        layout.build(game, width, NotationFontMetrics());
+        std::string notice;
+        int moves = 0, results = 0;
+        for (std::size_t i = 0; i < layout.items().size(); ++i) {
+            const NotationItem& item = layout.items()[i];
+            if (item.kind == NOTATION_MOVE && item.node) {
+                ++moves;
+                expect_true(owned.count(item.node) == 1 && item.node->san != "Rh8",
+                            "notation hitboxes refer only to owned legal moves");
+            }
+            if (item.kind == NOTATION_RESULT) ++results;
+            if (item.kind == NOTATION_COMMENT) { notice += item.text; notice += ' '; }
+        }
+        expect_true(moves == 154 && results == 0 && notice.find("Rh8") != std::string::npos &&
+                    notice.find("154") != std::string::npos && !layout.selection_rects(game.error_position).empty(),
+                    "notation marks the truncation without an illegal move or misleading terminal result");
+        const int scroll = layout.ensure_visible(cursor.current(), 0, 160);
+        bool visible = false;
+        for (std::size_t i = 0; i < layout.items().size(); ++i) {
+            const NotationItem& item = layout.items()[i];
+            if (item.node == cursor.current() && item.kind == NOTATION_MOVE)
+                visible = item.y >= scroll && item.y + item.height <= scroll + 160;
+        }
+        expect_true(visible, "initial truncation selection can be revealed after reflow and figurine changes");
+    }
+
+    struct Case { const char* text; PgnParseStatus status; std::size_t plies; const char* fen; bool complete; };
+    const Case cases[] = {
+        {"[Event \"First move\"]\n\n1. Rh8 *", PGN_PARTIAL, 0,
+         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false},
+        {"1. e4 e5 2. Nf3 Nc6 3. Bh9 Bb5 *", PGN_PARTIAL, 4,
+         "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", false},
+        {"1. e4 e5 (1... c5 2. Nf3 Kb8) (1... d5) 2. Nf3 *", PGN_RECOVERED_VARIATION, 3,
+         "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2", true},
+        {"1. e4 e5 (1... c5 2. Nf3 Kb8 2. d4 *", PGN_PARTIAL, 3,
+         "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2", false},
+        {"1. e4 e5 (1... c5 2. Nf3", PGN_PARTIAL, 3,
+         "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2", false},
+        {"1. e4 e5 ) 2. Nf3 *", PGN_PARTIAL, 2,
+         "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2", false},
+        {"1. e4 e5 {unclosed comment", PGN_PARTIAL, 2,
+         "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2", false},
+        {"1. e4 1-0 (1... e5 2. Rh8)", PGN_PARTIAL, 1,
+         "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", false},
+        {"[SetUp \"1\"]\n[FEN \"4k3/8/8/8/8/8/8/4R1K1 b - - 0 31\"]\n31... -- *", PGN_PARTIAL, 0,
+         "4k3/8/8/8/8/8/8/4R1K1 b - - 0 31", false}
+    };
+    for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        PgnDocument doc;
+        expect_true(PgnParser::parse_for_viewing(cases[i].text, doc) == cases[i].complete && doc.games.size() == 1,
+                    "viewer recovery distinguishes complete mainlines from aborted parsing");
+        if (doc.games.size() != 1) continue;
+        PgnGame& recovered = *doc.games[0];
+        MoveNavigator navigation(recovered);
+        expect_true(recovered.parse_status == cases[i].status && recovered.available_plies == cases[i].plies &&
+                    navigation.current() == recovered.error_position && navigation.position().to_fen() == cases[i].fen,
+                    "each recovery selects its owned last valid node with exact ply count and FEN");
+        std::set<const MoveNode*> tree;
+        tree.insert(recovered.root);
+        verify_partial_tree(recovered.root, recovered.initial_position, tree);
+        expect_true(tree.count(recovered.error_position) == 1, "partial error positions belong to the navigable tree");
+        if (cases[i].status == PGN_RECOVERED_VARIATION) {
+            navigation.to_begin(); navigation.to_end();
+            expect_true(recovered.root->children[0]->children.size() == 3 &&
+                        navigation.current()->san == "Nf3" && doc.warnings.size() == 1 && doc.errors.empty(),
+                        "a bounded RAV error retains the mainline and subsequent sibling RAV");
+        }
+    }
+    const char* fatal[] = {
+        "[Event \"unterminated", "[Event \"ok\"]\n[FEN \"unterminated",
+        "[SetUp \"1\"]\n[FEN \"invalid\"]\n1. e4 *", "[Variant \"Unsupported\"]\n1. e4 *"
+    };
+    for (std::size_t i = 0; i < sizeof(fatal) / sizeof(fatal[0]); ++i) {
+        PgnDocument doc;
+        expect_true(!PgnParser::parse_for_viewing(fatal[i], doc) && doc.games.empty() && !doc.errors.empty(),
+                    "unreadable headers and unknown starting positions remain fatal without invented nodes");
+    }
+    const std::string following = "\n\n[Event \"Following valid game\"]\n\n1. d2d4 Ng8f6 *\n";
+    const std::string multiple = damaged + following;
+    PgnDocument combined;
+    expect_true(!PgnParser::parse_for_viewing(multiple, combined) && combined.games.size() == 2 &&
+                combined.games[0]->parse_status == PGN_PARTIAL && combined.games[1]->parse_status == PGN_COMPLETE,
+                "a following valid LAN game is recovered without absorbing it into the partial game");
+    PgnDocument broken_rav;
+    expect_true(!PgnParser::parse_for_viewing(std::string(cases[4].text) + following, broken_rav) &&
+                broken_rav.games.size() == 2 && broken_rav.games[1]->parse_status == PGN_COMPLETE,
+                "even an unclosed RAV stops at a reliable next-game tag boundary");
+    PgnDocument swallowed;
+    expect_true(!PgnParser::parse_for_viewing(std::string("1. e4 {unclosed") + following, swallowed) &&
+                swallowed.games.size() == 1 && swallowed.games[0]->parse_status == PGN_PARTIAL,
+                "an unclosed comment cannot invent a reliable boundary for a later apparent game");
+    PgnDocument lan_view;
+    expect_true(PgnParser::parse_for_viewing(read_file_bytes("tests/data/spice-cup-2025-lan.pgn"), lan_view) &&
+                lan_view.games.size() == 2 && lan_view.games[0]->parse_status == PGN_COMPLETE &&
+                lan_view.games[1]->parse_status == PGN_COMPLETE,
+                "both original LAN regression games remain complete in the viewer parser");
+    PgnDocument valid;
+    expect_true(PgnParser::parse_for_viewing(original, valid) && valid.games.size() == 1 &&
+                valid.games[0]->parse_status == PGN_COMPLETE && valid.games[0]->parse_warning().empty(),
+                "the legal 78.Rg1+ game remains complete in viewer mode");
+
+    if (valid.games.size() == 1) {
+        MoveNavigator normal(*valid.games[0]);
+        expect_true(normal.at_root(), "a completely valid game retains the original starting selection");
+    }
+    const std::string path = test_scratch_directory + "/partial-then-valid.pgn";
+    expect_true(write_file_bytes(path, multiple), "write isolated partial/valid selector fixture");
+    PgnLibrary library;
+    std::vector<std::string> paths(1, path), errors;
+    std::string error;
+    std::ostringstream log;
+    std::streambuf* previous = std::cerr.rdbuf(log.rdbuf());
+    const bool opened = library.load(paths, errors);
+    while (!library.indexing_complete()) library.step_indexing(100, errors);
+    const bool first = library.materialize_current(error);
+    bool cached = false, switched = false, returned = false;
+    if (first) {
+        cached = library.materialize_current(error) && library.current_game()->parse_status == PGN_PARTIAL;
+        MoveNavigator navigation(*library.current_game());
+        navigation.back(); navigation.forward();
+        std::string reason;
+        expect_true(library.current_game_deletion_eligible(reason), "a partial game with reliable boundaries remains eligible for deletion");
+        switched = library.select_game(1) && library.materialize_current(error) &&
+                   library.current_game()->parse_status == PGN_COMPLETE;
+        if (switched) {
+            MoveNavigator normal(*library.current_game());
+            expect_true(normal.at_root(), "selecting a valid party keeps ordinary initial navigation");
+        }
+        returned = library.select_game(0) && library.materialize_current(error) &&
+                   library.current_game()->parse_status == PGN_PARTIAL;
+        if (returned) {
+            MoveNavigator again(*library.current_game());
+            expect_true(again.position().to_fen() == before_error, "returning through the selector shows the error position again");
+        }
+    }
+    std::cerr.rdbuf(previous);
+    expect_true(opened && library.game_count() == 2 && first && cached && switched && returned && error.empty(),
+                "indexed loading, cache reuse and arbitrary selection work for partial and valid games");
+    const std::string logged = log.str();
+    const std::size_t occurrence = logged.find("\"Rh8\"");
+    expect_true(occurrence != std::string::npos && logged.find("\"Rh8\"", occurrence + 1) == std::string::npos &&
+                logged.find("partial-then-valid.pgn: game 1:") != std::string::npos,
+                "a partial-game warning is logged once even after navigation, caching and reselection");
+    std::remove(path.c_str());
+    const std::string rav_path = test_scratch_directory + "/broken-rav-then-valid.pgn";
+    expect_true(write_file_bytes(rav_path, std::string("[Event \"Broken RAV\"]\n\n") + cases[4].text + following),
+                "write an unclosed-RAV index regression");
+    PgnLibrary rav_library;
+    paths[0] = rav_path;
+    expect_true(rav_library.load(paths, errors), "unclosed-RAV file opens for indexing");
+    while (!rav_library.indexing_complete()) rav_library.step_indexing(100, errors);
+    expect_true(rav_library.game_count() == 2 && rav_library.materialize_current(error) &&
+                rav_library.current_game()->parse_status == PGN_PARTIAL && rav_library.select_game(1) &&
+                rav_library.materialize_current(error) && rav_library.current_game()->parse_status == PGN_COMPLETE,
+                "the real index and lazy loader separate a valid game after an unclosed RAV");
+    std::remove(rav_path.c_str());
+}
+
 void finish_index(gambitree::PgnIndex& index, const std::string& path)
 {
     std::string error;
@@ -6703,6 +7443,345 @@ void test_pgn_delete_library()
     rmdir(base.c_str());
 }
 
+void test_pgn_delete_partial_boundaries()
+{
+    using namespace gambitree;
+    const std::string path = test_scratch_directory + "/delete-partial-boundaries.pgn";
+    const std::string first = "[Event \"Before\"]\n\n1. d4 d5 *";
+    const std::string last = "[Event \"After\"]\n\n1. c4 e5 *";
+    std::string damaged = read_file_bytes("tests/data/guarin-malagon-2024-illegal-last-move.pgn");
+    while (!damaged.empty() && std::isspace(static_cast<unsigned char>(damaged[damaged.size() - 1])))
+        damaged.erase(damaged.size() - 1);
+    const std::string rav = "[Event \"Bad alternative\"]\n\n1. e4 e5 (1... c5 2. Rh8) 2. Nf3 *";
+    const std::string bad_games[] = { damaged, rav };
+    std::vector<std::string> paths(1, path), errors;
+    std::string error, reason;
+    bool committed, removed, sync_warning;
+    // Cover both kinds of move error at every position, including a sole game.
+    for (std::size_t kind = 0; kind < 2; ++kind) {
+        for (int location = 0; location < 4; ++location) {
+            const std::string source = location == 0 ? bad_games[kind] + "\n\n" + first + "\n\n" + last :
+                location == 1 ? first + "\n\n" + bad_games[kind] + "\n\n" + last :
+                location == 2 ? first + "\n\n" + last + "\n\n" + bad_games[kind] : bad_games[kind];
+            expect_true(write_file_bytes(path, source), "write an isolated partial-game deletion copy");
+            PgnLibrary library;
+            expect_true(library.load(paths, errors), "partial deletion source loads");
+            while (!library.indexing_complete()) library.step_indexing(100, errors);
+            const std::size_t selected = location == 3 ? 0 : location;
+            expect_true(library.select_game(selected) && library.materialize_current(error) &&
+                        library.current_game()->parse_status == (kind ? PGN_RECOVERED_VARIATION : PGN_PARTIAL),
+                        "deletion selects the actual mainline or RAV error without changing parser status");
+            const PgnIndex& index = library.current_file()->index;
+            expect_true(index.boundaries_reliable(selected) &&
+                        index.whole_file_is_single_game() == (location == 3) &&
+                        library.current_game_deletion_eligible(reason),
+                        "move validity is independent of confirmed game and whole-file boundaries");
+            if (!kind) {
+                MoveNavigator navigation(*library.current_game());
+                expect_true(library.current_game()->available_plies == 154 && navigation.position().to_fen() ==
+                            "8/8/8/4B3/2b3p1/6R1/5K2/7k w - - 7 78",
+                            "the long partial deletion fixture still has the exact 154-ply prefix and pre-error FEN");
+            }
+            expect_true(library.delete_current_game(committed, removed, sync_warning, error) && committed &&
+                        removed == (location == 3), "reliably bounded mainline and RAV errors can be removed");
+            if (location == 3) {
+                expect_true(library.file_count() == 0 && access(path.c_str(), F_OK) != 0,
+                            "a proven sole partial game safely removes its source file");
+            } else {
+                expect_true(read_file_bytes(path) == first + "\n\n" + last + (location == 2 ? "\n" : ""),
+                            "damaged-game deletion preserves other game bytes and the existing final-newline policy");
+                expect_true(library.game_count() == 2 && library.game_index() == (location == 0 ? 0U : 1U) &&
+                            library.materialize_current(error) && library.current_game()->parse_status == PGN_COMPLETE &&
+                            *library.current_game()->tag_value("Event") == (location == 0 ? "Before" : "After"),
+                            "partial deletion reindexes and selects the correct next or previous complete game");
+            }
+        }
+    }
+    const std::string uncertain[] = {
+        "[Event \"Open comment\"]\n\n1. Rh8 {not closed",
+        "[Event \"Open RAV\"]\n\n1. e4 (1. Rh8 *",
+        "[Event \"Stray end\"]\n\n1. e4 ) *",
+        "[Event \"Open tag\"]\n\n1. Rh8 [Event \"unfinished",
+        "[Event \"Hidden second game\"]\n\n1. e4 * 1. d4 *",
+        "[Event \"Hidden tag boundary\"] 1. Rh8 * [Event \"Second\"] 1. d4 *",
+        "[Event \"First headers\"]\n\n[Event \"Second headers\"]",
+        "[Event \"Post-result RAV\"]\n\n1. e4 *\n(1... e5)",
+        "[Event \"Hidden NAG/result\"]\n\n1. Rh8 *$1 1. d4 *",
+        "{only a closed comment}",
+        std::string("[Event \"Embedded NUL\"]\n\n1. Rh8 *") + '\0' + last
+    };
+    for (std::size_t i = 0; i < sizeof(uncertain) / sizeof(uncertain[0]); ++i) {
+        const std::string source = uncertain[i];
+        expect_true(write_file_bytes(path, source), "write an isolated uncertain-boundary deletion copy");
+        PgnLibrary library;
+        expect_true(library.load(paths, errors), "structurally damaged deletion source can be indexed");
+        while (!library.indexing_complete()) library.step_indexing(100, errors);
+        const PgnIndex& index = library.current_file()->index;
+        expect_true(index.complete() && !index.whole_file_is_single_game(),
+                    "a finished index, even with one entry, does not prove safe whole-file removal");
+        for (std::size_t g = 0; g < library.game_count(); ++g) {
+            expect_true(!index.boundaries_reliable(g), "ambiguous game ranges remain explicitly untrusted");
+            if (library.select_game(g) && library.materialize_current(error))
+                expect_true(!library.current_game_deletion_eligible(reason) &&
+                            reason.find("cannot safely tell where this game starts and ends") != std::string::npos,
+                            "uncertain game boundaries produce a clear removal refusal even for a viewable game");
+            expect_true(!library.delete_current_game(committed, removed, sync_warning, error) && !committed &&
+                        !removed && read_file_bytes(path) == source,
+                        "uncertain framing never authorizes destructive replacement or whole-file removal");
+        }
+    }
+    // A comment may contain apparent headers; neither side of that split is proven.
+    const std::string open_comment = "[Event \"Broken\"]\n\n1. e4 {not closed\n\n" + last;
+    write_file_bytes(path, first + "\n\n" + open_comment);
+    PgnLibrary mixed;
+    expect_true(mixed.load(paths, errors), "mixed reliable and uncertain source loads");
+    while (!mixed.indexing_complete()) mixed.step_indexing(100, errors);
+    const PgnIndex& mixed_index = mixed.current_file()->index;
+    expect_true(mixed.game_count() == 3 && mixed_index.boundaries_reliable(0) &&
+                !mixed_index.boundaries_reliable(1) && !mixed_index.boundaries_reliable(2),
+                "apparent headers inside an unclosed comment invalidate both adjacent ranges, not earlier safe games");
+    expect_true(mixed.materialize_current(error) && mixed.delete_current_game(committed, removed, sync_warning, error) &&
+                committed && !removed && read_file_bytes(path) == open_comment,
+                "a reliable game can still be removed from a file containing later uncertain boundaries");
+
+    const std::string trivia = " \n{closed file preamble}\n; another comment\n";
+    // Quotes and delimiters inside tag values do not affect source framing.
+    write_file_bytes(path, trivia + "[Event \"Quoted \\\" { ( text\"]\n\n1. Rh8 *");
+    PgnLibrary sole;
+    sole.load(paths, errors);
+    while (!sole.indexing_complete()) sole.step_indexing(100, errors);
+    expect_true(sole.current_file()->index.whole_file_is_single_game() && sole.materialize_current(error) &&
+                sole.delete_current_game(committed, removed, sync_warning, error) && committed && removed &&
+                access(path.c_str(), F_OK) != 0,
+                "whole-file proof permits harmless preamble trivia and quoted structural characters");
+
+    write_file_bytes(path, damaged);
+    PgnLibrary changed;
+    changed.load(paths, errors);
+    while (!changed.indexing_complete()) changed.step_indexing(100, errors);
+    expect_true(changed.materialize_current(error), "load a partial game before an external modification");
+    std::string replacement = damaged;
+    replacement.replace(replacement.find("Rh8"), 3, "Rh7");
+    write_file_bytes(path, replacement);
+    expect_true(!changed.delete_current_game(committed, removed, sync_warning, error) && !committed &&
+                read_file_bytes(path) == replacement,
+                "the existing identity and content checks still reject an externally changed partial source");
+    PgnDeleteBaseline baseline = capture_pgn_delete_baseline(path);
+    PgnDeleteResult result;
+    expect_true(!pgn_delete_range(path, baseline, 1, baseline.size, true, result) && !result.committed &&
+                read_file_bytes(path) == replacement,
+                "whole-file unlink rejects a subrange even with a valid source fingerprint");
+    unlink(path.c_str());
+}
+
+void test_pgn_index_headers_and_escape_lines()
+{
+    const std::string path = test_scratch_directory + "/header-escape-deletion.pgn";
+    const char* ambiguous[] = {
+        "[White \"Player A\"]\n[Black \"Player B\"]\n\n[White \"Player C\"]\n[Black \"Player D\"]\n\n1. d4 d5 *\n",
+        "[Annotator \"A\"]\n\n[Annotator \"B\"]\n\n1. d4 d5 *\n",
+        "[White \"A\"] [Black \"B\"] [White \"C\"]\n\n1. d4 d5 *\n",
+        "[White \"A\"]\n\n[White C]\n[Black \"D\"]\n\n1. d4 d5 *\n",
+        "[White \"A\"]\n\n[Black \"not closed\n[White \"C\"]\n\n1. d4 d5 *\n"
+    };
+    std::vector<std::string> paths(1, path), errors;
+    std::string error, reason;
+    bool committed, removed, sync_warning;
+    for (std::size_t i = 0; i < sizeof(ambiguous) / sizeof(ambiguous[0]); ++i) {
+        expect_true(write_file_bytes(path, ambiguous[i]), "write an isolated ambiguous-header source");
+        PgnLibrary library;
+        expect_true(library.load(paths, errors), "ambiguous header source opens");
+        while (!library.indexing_complete()) library.step_indexing(100, errors);
+        expect_true(library.game_count() != 0 && !library.current_file()->index.whole_file_is_single_game(),
+                    "repeated or damaged headers cannot prove safe whole-file removal");
+        for (std::size_t g = 0; g < library.game_count(); ++g) {
+            expect_true(!library.current_file()->index.boundaries_reliable(g),
+                        "all ranges affected by an ambiguous header block remain untrusted");
+            library.select_game(g);
+            library.materialize_current(error);
+            expect_true(!library.current_game_deletion_eligible(reason) &&
+                        !library.delete_current_game(committed, removed, sync_warning, error) && !committed &&
+                        !removed && read_file_bytes(path) == ambiguous[i],
+                        "ambiguous headers never authorize replacement or unlink of their source");
+        }
+    }
+    // Escape text deliberately contains misleading tags, quotes and delimiters.
+    const std::string escape = "% ignored [Event \"fake\"] { ( ] \"";
+    for (int crlf = 0; crlf < 2; ++crlf) for (int where = 0; where < 6; ++where) {
+        std::string prefix = where == 0 ? escape + "\n" : where == 5 ? "\xef\xbb\xbf" + escape + "\n" : "";
+        std::string first = "[Event \"First\"]\n";
+        if (where == 2) first += escape + "\n";
+        first += "[White \"A\"]\n[Black \"B\"]\n\n";
+        first += where == 3 ? "1. e4\n" + escape + "\ne5 *" :
+            where == 4 ? "1. e4 e5 (1... c5\n" + escape + "\n) *" : "1. e4 e5 *";
+        first += "\n\n";
+        if (where == 1) first += escape + "\n\n";
+        std::string second = "[Event \"Second\"]\n[White \"C\"]\n[Black \"D\"]\n\n1. d4 d5 *\n";
+        if (crlf) {
+            std::string* parts[] = { &prefix, &first, &second };
+            for (std::size_t part = 0; part < 3; ++part) {
+                std::string converted;
+                for (std::size_t j = 0; j < parts[part]->size(); ++j) {
+                    if ((*parts[part])[j] == '\n') converted += '\r';
+                    converted += (*parts[part])[j];
+                }
+                parts[part]->swap(converted);
+            }
+        }
+        gambitree::PgnDocument parsed;
+        expect_true(gambitree::PgnParser::parse(prefix + first + second, parsed) && parsed.games.size() == 2 &&
+                    parsed.games[0]->root->children.size() == 1 &&
+                    !parsed.games[0]->root->children[0]->children.empty() &&
+                    parsed.games[0]->root->children[0]->children[0]->san == "e5",
+                    "strict parsing also ignores escape lines before and between headers without inventing games");
+        expect_true(write_file_bytes(path, prefix + first + second), "write an isolated escape-line deletion source");
+        PgnLibrary library;
+        expect_true(library.load(paths, errors), "escape-line source opens");
+        while (!library.indexing_complete()) library.step_indexing(1, errors);
+        const PgnIndex& index = library.current_file()->index;
+        expect_true(library.game_count() == 2 && index.boundaries_reliable(0) && index.boundaries_reliable(1),
+                    "LF/CRLF escape lines before, between and inside games introduce no fictitious or uncertain ranges");
+        if (library.game_count() != 2) continue;
+        expect_true(index.entries()[0].begin == prefix.size() &&
+                    index.entries()[0].end == prefix.size() + first.size() &&
+                    index.entries()[1].begin == index.entries()[0].end && index.entries()[1].end == index.file_size(),
+                    "escape lines preserve exact source boundaries including a BOM-prefixed preamble");
+        for (std::size_t g = 0; g < 2; ++g) {
+            expect_true(library.select_game(g) && library.materialize_current(error) &&
+                        library.current_game()->parse_status == gambitree::PGN_COMPLETE &&
+                        library.current_game_deletion_eligible(reason),
+                        "escape lines neither change parsed games nor block their deletion");
+            MoveNavigator navigation(*library.current_game());
+            navigation.to_end();
+            std::ostringstream context;
+            context << "escape contents preserve the mainline (CRLF=" << crlf << ", location=" << where
+                    << ", game=" << g + 1 << ", final=" << navigation.current()->san << ")";
+            expect_true(navigation.current()->san == (g ? "d5" : "e5"), context.str().c_str());
+        }
+        library.select_game(0); library.materialize_current(error);
+        expect_true(library.delete_current_game(committed, removed, sync_warning, error) && committed && !removed &&
+                    library.game_count() == 1 && library.game_index() == 0 && read_file_bytes(path) == prefix + second &&
+                    library.materialize_current(error) && *library.current_game()->tag_value("Event") == "Second",
+                    "deleting an escape-delimited game preserves and selects the following game byte for byte");
+        expect_true(library.current_file()->index.whole_file_is_single_game() &&
+                    library.delete_current_game(committed, removed, sync_warning, error) && committed && removed &&
+                    access(path.c_str(), F_OK) != 0,
+                    "a sole game with a harmless escape preamble may safely remove its whole file");
+    }
+    // Missing Event tags and a missing result do not hide a following header boundary.
+    const std::string first = "[White \"A\"]\n[Black \"B\"]\n\n1. Rh8\n\n";
+    const std::string second = "[White \"C\"]\n[Black \"D\"]\n\n1. d4 d5 *";
+    write_file_bytes(path, first + second);
+    PgnLibrary missing;
+    missing.load(paths, errors);
+    while (!missing.indexing_complete()) missing.step_indexing(1, errors);
+    expect_true(missing.game_count() == 2 && missing.current_file()->index.boundaries_reliable(0) &&
+                missing.current_file()->index.boundaries_reliable(1) && missing.materialize_current(error) &&
+                missing.current_game()->parse_status == gambitree::PGN_PARTIAL &&
+                missing.delete_current_game(committed, removed, sync_warning, error) && committed && !removed &&
+                read_file_bytes(path) == second,
+                "repeated names reset at proven boundaries even with missing Event/result and an illegal move");
+    unlink(path.c_str());
+}
+
+void test_pgn_index_numbering_restarts()
+{
+    const std::string path = test_scratch_directory + "/numbering-restart.pgn";
+    const std::string headers = "[Event \"First\"]\n[White \"Player A\"]\n[Black \"Player B\"]\n\n";
+    const char* after_two = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2";
+    const char* after_three = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
+    const char* after_four = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+    const char* after_five = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3";
+    const char* white_fen = "[SetUp \"1\"]\n[FEN \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 31\"]\n";
+    const char* black_fen = "[SetUp \"1\"]\n[FEN \"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 31\"]\n";
+    const std::string oversized = std::string(96, '9') + ". e4 e5 *";
+    struct Case { const char* setup; const char* moves; bool uncertain; bool partial; std::size_t plies; const char* fen; };
+    const Case cases[] = {
+        { "", "1. e4 e5\n\n1. e4 e5 *\n", true, true, 2, after_two },
+        { "", "1.e4 e5\n\n1.e4 e5 *\n", true, true, 2, after_two },
+        { "", "1. e4 e5 2. Nf3 Nc6\n\n1. Bb5 *", true, false, 5, after_five },
+        { "", "1. e4 1... e5 1... Nf3 *", true, false, 3, after_three },
+        { "", "7. e4 e5 6. Nf3 *", true, false, 3, after_three },
+        { "", oversized.c_str(), true, false, 2, after_two },
+        { "", "1. e4 1... e5 2. Nf3 2... Nc6 *", false, false, 4, after_four },
+        { "", "1. $1 ! 1. e4 1... e5 *", false, false, 2, after_two },
+        { "", "e4 e5 Nf3 Nc6 *", false, false, 4, after_four },
+        { "", "e4 1... e5 Nf3 Nc6 3. Bb5 *", false, false, 5, after_five },
+        { "", "41. e4 e5 99. Nf3 *", false, false, 3, after_three },
+        { "", "1. e4 e5 2. Nf3 (1. Nf3 Nc6 (1... Nf6)) Nc6 3. Bb5 *", false, false, 5, after_five },
+        { "", "1. e4 $1 {999. 1. ignored}\n% 1. ignored\n1... e5 2. Nf3 *", false, false, 3, after_three },
+        { white_fen, "31. e4 31... e5 32. Nf3 *", false, false, 3,
+          "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 32" },
+        { black_fen, "31... e5 32. Nf3 32... Nc6 *", false, false, 3,
+          "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 33" },
+        { white_fen, "1. e4 e5 2. Nf3 *", false, false, 3,
+          "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 32" }
+    };
+    std::vector<std::string> paths(1, path), errors;
+    std::string error, reason;
+    bool committed, removed, sync_warning;
+    for (int crlf = 0; crlf < 2; ++crlf) for (std::size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        std::string source = headers + cases[i].setup + cases[i].moves;
+        if (crlf) for (std::size_t j = 0; j < source.size(); ++j)
+            if (source[j] == '\n') { source.insert(j, 1, '\r'); ++j; }
+        expect_true(write_file_bytes(path, source), "write an isolated move-number deletion source");
+        PgnLibrary library;
+        expect_true(library.load(paths, errors), "numbered source opens");
+        while (!library.indexing_complete()) library.step_indexing(1, errors);
+        const PgnIndex& index = library.current_file()->index;
+        expect_true(library.game_count() == 1 && index.entries()[0].begin == 0 &&
+                    index.entries()[0].end == source.size() &&
+                    index.boundaries_reliable(0) == !cases[i].uncertain &&
+                    index.whole_file_is_single_game() == !cases[i].uncertain,
+                    "numbering hints affect boundary confidence without inventing games or changing ranges");
+        const bool loaded = library.materialize_current(error);
+        expect_true(loaded, "numbering changes do not prevent the viewer from loading its existing game tree");
+        if (!loaded) continue;
+        PgnGame& game = *library.current_game();
+        MoveNavigator navigation(game);
+        expect_true(game.parse_status == (cases[i].partial ? gambitree::PGN_PARTIAL : gambitree::PGN_COMPLETE),
+                    "the viewer retains its tolerance for incorrect numbers and its existing partial-load status");
+        if (cases[i].partial)
+            expect_true(game.available_plies == 2 && navigation.position().to_fen() == after_two &&
+                        game.parse_error.message.find("\"e4\"") != std::string::npos &&
+                        game.parse_error.line == 7 && game.parse_error.column == (i == 1 ? 3 : 4),
+                        "the original damaged game still selects the exact two-ply prefix and reports the same error");
+        navigation.to_begin();
+        std::size_t plies = 0;
+        while (navigation.forward()) ++plies;
+        expect_true(plies == cases[i].plies && navigation.position().to_fen() == cases[i].fen,
+                    "FEN starts, RAVs, omitted and inaccurate numbers preserve exact playable plies and final FEN");
+        expect_true(library.current_game_deletion_eligible(reason) == !cases[i].uncertain,
+                    "only uncertain numbering blocks deletion, not ordinary black numbers or a non-one start");
+        if (cases[i].uncertain) {
+            expect_true(!library.delete_current_game(committed, removed, sync_warning, error) &&
+                        !committed && !removed && read_file_bytes(path) == source &&
+                        error.find("cannot safely tell where this game starts and ends") != std::string::npos,
+                        "a numbering restart never authorizes replacement or whole-file deletion");
+        } else {
+            expect_true(library.delete_current_game(committed, removed, sync_warning, error) &&
+                        committed && removed && access(path.c_str(), F_OK) != 0,
+                        "unambiguous numbering still permits safe removal of a sole game");
+        }
+    }
+    const std::string first = "[Event \"Before\"]\n\n99. d4 d5 *\n\n";
+    const std::string last = "[Event \"After\"]\n\n1. c4 e5 *\n";
+    const std::string source = first + headers + cases[0].moves + "\n" + last;
+    write_file_bytes(path, source);
+    PgnLibrary library;
+    library.load(paths, errors);
+    while (!library.indexing_complete()) library.step_indexing(1, errors);
+    const PgnIndex& index = library.current_file()->index;
+    expect_true(library.game_count() == 3 && index.boundaries_reliable(0) &&
+                !index.boundaries_reliable(1) && index.boundaries_reliable(2),
+                "number tracking resets at proven boundaries and never makes adjacent valid games untrusted");
+    expect_true(library.select_game(1) && library.materialize_current(error) &&
+                !library.delete_current_game(committed, removed, sync_warning, error) &&
+                !committed && read_file_bytes(path) == source,
+                "an uncertain middle range cannot be removed from between two independently bounded games");
+    unlink(path.c_str());
+}
+
 void test_pgn_delete_repeated_separators()
 {
     int newline_mode;
@@ -7006,6 +8085,32 @@ void test_pgn_index()
                 index.entries()[0].begin == 0 &&
                 index.entries()[0].end == index.entries()[1].begin,
                 "provisional scanner keeps BOM in absolute first-game range");
+    std::remove(path);
+
+    /* Escape lines preserve both the fast-path probe and pending tag blocks. */
+    output.open(path, std::ios::out | std::ios::binary);
+    const std::string fast_first = "\xef\xbb\xbf% export preamble\r\n[Event \"First\"]\r\n"
+        "% ignored { [Event \"fake\"]\r\n[Site \"A\"]\r\n\r\n1. e4 *\r\n\r\n";
+    const std::string fast_second = "% between games\r\n[Event \"Second\"]\r\n[Site \"B\"]\r\n\r\n1. d4 *\r\n\r\n";
+    const std::string fast_third = "[Event \"Third\"]\r\n% between tags\r\n[Site \"C\"]\r\n\r\n1. c4 *\r\n";
+    output << fast_first << fast_second << fast_third;
+    output.seekp(static_cast<std::streamoff>(PgnIndex::provisional_threshold() + 17));
+    output << '\n';
+    output.close();
+    expect_true(index.open(path, error) && index.provisional(),
+                "escape lines do not prevent selection of the fast indexer");
+    while (!index.complete() && !index.failed())
+        expect_true(index.step_for_milliseconds(5, error), "fast escape-line indexing progresses");
+    expect_true(index.entries().size() == 3 &&
+                index.entries()[0].begin == fast_first.find("[Event \"First\"]") &&
+                index.entries()[1].begin == fast_first.size() + fast_second.find("[Event \"Second\"]") &&
+                index.entries()[2].begin == fast_first.size() + fast_second.size() &&
+                index.entries()[0].end == index.entries()[1].begin &&
+                index.entries()[1].end == index.entries()[2].begin && index.entries()[2].end == index.file_size(),
+                "fast indexing ignores escape lines while preserving all three exact ranges");
+    expect_true(index.scanner_buffer_bytes() <= 2U * 1024U * 1024U &&
+                index.entry_storage_bytes() <= index.entries().capacity() * sizeof(gambitree::PgnIndexEntry),
+                "escape handling preserves the fast scanner's fixed buffer and compact entries");
     std::remove(path);
 
     output.open(path);
@@ -8224,6 +9329,11 @@ int main()
     test_special_moves();
     test_legality_and_status();
     test_san();
+    test_missing_pawn_capture_file();
+    test_lan();
+    test_san_check_annotations();
+    test_san_error_diagnostics();
+    test_partial_games();
     test_analytical_null_moves();
     test_pgn();
     test_pgn_symbolic_suffixes();
@@ -8271,6 +9381,9 @@ int main()
     test_pgn_library();
     test_pgn_delete_filesystem();
     test_pgn_delete_library();
+    test_pgn_delete_partial_boundaries();
+    test_pgn_index_headers_and_escape_lines();
+    test_pgn_index_numbering_restarts();
     test_pgn_delete_repeated_separators();
     test_pgn_index();
     test_notation_semantics();

@@ -421,6 +421,7 @@ bool X11NotationRenderer::figurines() const { return figurines_; }
 
 int X11NotationRenderer::controls_top() const { return 8; }
 int X11NotationRenderer::controls_bottom() const { return controls_top() + text_height_ + 8; }
+void X11NotationRenderer::set_status(const std::string& text) { status_ = text; }
 
 SidebarBoxes X11NotationRenderer::boxes(int window_width, int window_height, const PgnGame& game) const {
     SidebarBoxes result;
@@ -429,7 +430,10 @@ SidebarBoxes X11NotationRenderer::boxes(int window_width, int window_height, con
     result.controls_top = controls_top();
     result.controls_bottom = controls_bottom();
     result.status_top = result.controls_bottom + 2;
-    result.status_bottom = result.status_top + text_height_ + 4;
+    const std::vector<std::string> status_lines =
+        NotationLayout::wrap_text(status_, available, ui_metrics_);
+    result.status_bottom = result.status_top +
+        static_cast<int>(std::max(std::size_t(1), status_lines.size())) * text_height_ + 4;
     result.engine_top = result.status_bottom + 6;
     result.engine_bottom = result.engine_top + 3 * engine_metrics_.line_height() + 8;
     result.metadata_top = result.engine_bottom + 8;
@@ -741,12 +745,17 @@ void X11NotationRenderer::draw_controls(Drawable drawable, int window_width, con
     XftDrawSetClip(draw, 0); XftDrawDestroy(draw);
 }
 
-void X11NotationRenderer::draw_status(Drawable drawable, int window_width, const std::string& text) const {
+void X11NotationRenderer::draw_status(Drawable drawable, int window_width) const {
     SidebarGeometry sidebar = sidebar_geometry(window_width); XftDraw* draw = XftDrawCreate(display_, drawable, visual_, colormap_);
     if (!draw) return;
     int top = controls_bottom() + 2;
-    set_clip(draw, sidebar.content_left, top, sidebar.content_width, text_height_ + 4);
-    draw_text(draw, ui_font_, UI_MUTED, sidebar.content_left, baseline(top + 2), text);
+    const std::vector<std::string> lines =
+        NotationLayout::wrap_text(status_, sidebar.content_width, ui_metrics_);
+    set_clip(draw, sidebar.content_left, top, sidebar.content_width,
+             static_cast<int>(lines.size()) * text_height_ + 4);
+    for (std::size_t i = 0; i < lines.size(); ++i)
+        draw_text(draw, ui_font_, UI_MUTED, sidebar.content_left,
+                  baseline(top + 2 + static_cast<int>(i) * text_height_), lines[i]);
     XftDrawSetClip(draw, 0); XftDrawDestroy(draw);
 }
 

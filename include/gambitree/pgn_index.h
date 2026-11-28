@@ -22,8 +22,10 @@ struct PgnIndexEntry {
 /*
  * Streaming game-range index.  Conventional databases at least 128 MiB use a
  * provisional 1 MiB block scanner; entries are only two 64-bit offsets so
- * tags and movetext never accumulate during indexing.  Exact tags, moves and
- * PGN semantics remain the responsibility of lazy materialization.
+ * no tags or movetext accumulate in that route.  The general scanner tracks
+ * names only within the current header block to detect ambiguous boundaries.
+ * Exact tags, moves and PGN semantics remain the responsibility of lazy
+ * materialization.
  */
 class PgnIndex {
 public:
@@ -42,6 +44,8 @@ public:
     const std::vector<PgnIndexEntry>& entries() const;
     std::size_t complete_entry_count() const;
     bool provisional() const;
+    bool boundaries_reliable(std::size_t game) const;
+    bool whole_file_is_single_game() const;
     bool fallback_to_general(std::string& error);
     std::size_t entry_storage_bytes() const;
     std::size_t scanner_buffer_bytes() const;
@@ -52,6 +56,8 @@ private:
     PgnOffset file_size_;
     PgnOffset bytes_scanned_;
     std::vector<PgnIndexEntry> entries_;
+    // Kept separately so the large-file index retains its 16-byte entries.
+    std::vector<bool> reliable_ranges_;
     bool complete_;
     bool failed_;
     bool in_brace_comment_;
@@ -60,6 +66,18 @@ private:
     bool saw_result_;
     bool saw_tag_like_;
     unsigned int rav_depth_;
+    bool in_tag_;
+    bool tag_quoted_;
+    bool tag_escaped_;
+    bool prefix_trivia_;
+    bool framing_content_;
+    bool framing_movetext_;
+    bool framing_result_;
+    unsigned long framing_move_number_;
+    bool framing_have_move_number_;
+    bool framing_black_number_;
+    bool framing_move_since_number_;
+    std::vector<std::string> framing_tags_;
     PgnOffset line_number_;
     PgnOffset lines_scanned_;
     std::size_t chunks_;
@@ -75,8 +93,10 @@ private:
     std::vector<char> fast_buffer_;
     std::vector<char> general_buffer_;
     PgnOffset next_diagnostic_bytes_;
-    bool line_is_tag(const std::string& line, bool allow_initial_bom) const;
-    bool line_has_top_level_result(const std::string& line) const;
+    bool framing_neutral() const;
+    void mark_uncertain();
+    bool finish_framing_token(const std::string& token);
+    bool scan_structure(const std::string& line, bool first_line);
     void finish_current(PgnOffset end);
     bool append_entry(PgnOffset begin, std::string& error);
     bool step_fast(unsigned long maximum_milliseconds, std::string& error);

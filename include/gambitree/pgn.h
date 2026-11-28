@@ -79,6 +79,8 @@ struct PgnTrailingItem {
         : type(item_type), comment(item_comment), variation_root(root) {}
 };
 
+enum PgnParseStatus { PGN_COMPLETE, PGN_RECOVERED_VARIATION, PGN_PARTIAL };
+
 class PgnGame {
 public:
     std::vector<PgnTag> tags;
@@ -86,6 +88,13 @@ public:
     Position initial_position;
     std::string result;
     std::vector<PgnTrailingItem> trailing_items;
+    PgnParseStatus parse_status;
+    PgnError parse_error;
+    // Non-owning, always a navigable node in root's validated tree.
+    const MoveNode* error_position;
+    // Length of the validated path to error_position, excluding side branches.
+    std::size_t available_plies;
+    std::string parse_warning() const;
     uint64_t instance_identity() const;
 
     PgnGame();
@@ -120,6 +129,13 @@ public:
        the next tag pair, which is the parser's reliable resynchronization point. */
     static bool parse(const std::string& text, PgnDocument& document,
                       bool allow_initial_bom = true);
+    /* Viewer mode retains validated prefixes after movetext errors. False still
+       reports a parse error; inspect each retained game's explicit status. */
+    static bool parse_for_viewing(const std::string& text, PgnDocument& document,
+                                 bool allow_initial_bom = true);
+private:
+    static bool parse_impl(const std::string& text, PgnDocument& document,
+                           bool allow_initial_bom, bool retain_prefix);
 };
 
 }

@@ -6,6 +6,7 @@
 #include <sstream>
 #include <ctime>
 #include <iostream>
+#include <memory>
 
 namespace gambitree {
 
@@ -31,7 +32,8 @@ MoveNode::~MoveNode()
     for (index = 0; index < children.size(); ++index) delete children[index];
 }
 PgnGame::PgnGame() : root(new MoveNode()), initial_position(Position::standard()),
-    result("*"), instance_identity_(next_game_identity++)
+    result("*"), parse_status(PGN_COMPLETE), error_position(0), available_plies(0),
+    instance_identity_(next_game_identity++)
 { if (instance_identity_ == 0) instance_identity_ = next_game_identity++; }
 PgnGame::~PgnGame()
 {
@@ -42,6 +44,18 @@ PgnGame::~PgnGame()
             delete trailing_items[index].variation_root;
 }
 uint64_t PgnGame::instance_identity() const { return instance_identity_; }
+std::string PgnGame::parse_warning() const
+{
+    if (parse_status == PGN_COMPLETE) return "";
+    std::ostringstream text;
+    text << (parse_status == PGN_PARTIAL ? "Partially loaded: " : "Variation truncated: ")
+         << parse_error.message << ". ";
+    if (parse_status == PGN_PARTIAL)
+        text << available_plies << " preceding plies available";
+    else text << "The main line is retained";
+    text << " (game line " << parse_error.line << ", column " << parse_error.column << ").";
+    return text.str();
+}
 const std::string* PgnGame::tag_value(const std::string& name) const
 {
     std::size_t index;
@@ -353,17 +367,45 @@ bool configure_start(PgnGame& game, PgnDocument& document, int game_number, cons
     return true;
 }
 
-bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_number, PgnDocument& document, PgnGame*& game)
+void record_issue(PgnGame& game, PgnParseStatus status, const PgnError& error,
+                   const MoveNode* position)
 {
-    game = new PgnGame();
-    while (index < tokens.size() && tokens[index].type == TOKEN_TAG) {
+    // Post-result hypothetical roots are deliberately outside the navigable tree.
+    const MoveNode* ancestor = position;
+    while (ancestor && ancestor != game.root) ancestor = ancestor->parent;
+    if (!ancestor) {
+        position = game.root;
+        while (!position->children.empty()) position = position->children[0];
+    }
+    game.parse_status = status;
+    game.parse_error = error;
+    if (!ancestor) game.parse_error.message += "; showing the last played position";
+    game.error_position = position;
+    game.available_plies = 0;
+    for (const MoveNode* node = position; node != game.root; node = node->parent)
+        ++game.available_plies;
+}
+
+bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_number,
+                 PgnDocument& document, PgnGame* game, MoveNode** stopped_at)
+{
+    // A non-null out-parameter enables viewer recovery after a validated start.
+    while (index < tokens.size() &&
+           (tokens[index].type == TOKEN_TAG || tokens[index].type == TOKEN_ESCAPE_LINE)) {
+        if (tokens[index].type == TOKEN_ESCAPE_LINE) { ++index; continue; }
         PgnTag tag;
         if (!parse_tag(tokens[index], tag)) { add_error(document, game_number, tokens[index], "malformed tag pair"); return false; }
         game->tags.push_back(tag); ++index;
     }
     Token location = index < tokens.size() ? tokens[index] : Token(TOKEN_END, "", 1, 1);
+    // A damaged header may hide SetUp/FEN/Variant: do not invent a start position.
+    if (stopped_at && location.type == TOKEN_ERROR) {
+        add_error(document, game_number, location, location.text);
+        return false;
+    }
     if (!configure_start(*game, document, game_number, location)) return false;
     LineState line(game->root, game->initial_position);
+    if (stopped_at) *stopped_at = line.current;
     std::vector<LineState> stack;
     std::vector<VariationFrame> variation_frames;
     bool saw_content = !game->tags.empty();
@@ -371,6 +413,7 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
     bool result_seen = false;
     int result_line = 0;
     while (index < tokens.size()) {
+        if (stopped_at) *stopped_at = line.current;
         const Token& token = tokens[index];
         if (token.type == TOKEN_END || (token.type == TOKEN_TAG && stack.empty())) break;
         if (result_seen && stack.empty()) {
@@ -385,11 +428,13 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
             }
             if (token.type == TOKEN_ESCAPE_LINE) { ++index; continue; }
             if (token.type == TOKEN_RAV_START) {
-                MoveNode* variation_root = new MoveNode();
+                std::auto_ptr<MoveNode> pending_root(new MoveNode());
+                MoveNode* variation_root = pending_root.get();
                 variation_root->position_after = line.position;
                 game->trailing_items.push_back(PgnTrailingItem(
                     PgnTrailingItem::HYPOTHETICAL_VARIATION, "",
                     variation_root));
+                pending_root.release();
                 stack.push_back(line);
                 variation_frames.push_back(VariationFrame(token, variation_root));
                 line = LineState(variation_root, line.position, true, true);
@@ -503,11 +548,19 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
                 !line.position.in_check(line.position.side_to_move()) :
                 line.position.parse_san(san_text, move);
             if (!valid_move) {
+                std::ostringstream reason;
+                reason << line.position.fullmove_number() << "."
+                       << (line.position.side_to_move() == WHITE ? "White" : "Black")
+                       << ": illegal or invalid SAN move \"" << san_text << "\""
+                       << (null_move && stopped_at ? ": a null move is not allowed while in check" :
+                           ": no unique legal move matches this notation");
+                const PgnError issue(game_number, token.line, token.column, reason.str());
                 std::ostringstream detail;
-                detail << "illegal or invalid SAN move \"" << san_text << "\""
-                       << " (RAV depth " << stack.size() << ", expected "
+                detail << reason.str() << " (RAV depth " << stack.size() << ", expected "
                        << (line.position.side_to_move() == WHITE ? "White" : "Black")
                        << " to move, FEN " << line.position.to_fen() << ")";
+                if (stopped_at && (line.post_result_analysis || variation_frames.empty()))
+                    record_issue(*game, PGN_PARTIAL, issue, line.current);
                 if (line.post_result_analysis) {
                     add_error(document, game_number, token,
                               "invalid post-result hypothetical variation: " +
@@ -520,13 +573,23 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
                 }
                 std::size_t after_variation;
                 if (!find_variation_end(tokens, index + 1, after_variation)) {
+                    if (stopped_at) {
+                        PgnError damaged = issue;
+                        damaged.message += "; cannot safely resume damaged variation";
+                        record_issue(*game, PGN_PARTIAL, damaged, line.current);
+                    }
                     add_error(document, game_number, variation_frames.back().opening,
                               "cannot safely skip invalid variation; its structure is damaged");
                     return false;
                 }
                 std::ostringstream warning;
-                warning << "truncating variation at illegal move \"" << san_text
-                        << "\" (RAV depth " << stack.size() << ")";
+                if (stopped_at) {
+                    if (game->parse_status == PGN_COMPLETE)
+                        record_issue(*game, PGN_RECOVERED_VARIATION, issue, line.current);
+                    warning << reason.str() << " (RAV depth " << stack.size()
+                            << "; variation truncated; main line retained)";
+                } else warning << "truncating variation at illegal move \"" << san_text
+                               << "\" (RAV depth " << stack.size() << ")";
                 add_skipped_variation_warning(document, game_number, token,
                                               warning.str());
                 line = stack.back();
@@ -536,11 +599,11 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
                 split_move_number_period = false;
                 continue;
             }
-            MoveNode* node = new MoveNode();
+            std::auto_ptr<MoveNode> pending_node(new MoveNode());
+            MoveNode* node = pending_node.get();
             Undo undo;
             if (null_move ? !line.position.make_null_move(undo) :
                             !line.position.make_move(move, undo)) {
-                delete node;
                 add_error(document, game_number, token,
                           "could not apply PGN move \"" + san_text + "\"");
                 return false;
@@ -556,12 +619,16 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
                         PgnMoveItem(PgnMoveItem::VARIATION, "", node));
                 line.variation_start = false;
             }
-            line.current->children.push_back(node); line.current = node; saw_content = true; ++index; continue;
+            line.current->children.push_back(node); pending_node.release();
+            line.current = node; saw_content = true; ++index; continue;
         }
         add_error(document, game_number, token, "unexpected token"); return false;
     }
     if (!stack.empty()) { add_error(document, game_number, tokens[index - 1], "unexpected EOF inside variation"); return false; }
-    if (!saw_content) { add_error(document, game_number, location, "empty PGN game"); return false; }
+    if (!saw_content) {
+        if (stopped_at) *stopped_at = 0;
+        add_error(document, game_number, location, "empty PGN game"); return false;
+    }
     return true;
 }
 
@@ -569,6 +636,14 @@ bool parse_game(const std::vector<Token>& tokens, std::size_t& index, int game_n
 
 bool PgnParser::parse(const std::string& text, PgnDocument& document,
                       bool allow_initial_bom)
+{ return parse_impl(text, document, allow_initial_bom, false); }
+
+bool PgnParser::parse_for_viewing(const std::string& text, PgnDocument& document,
+                                  bool allow_initial_bom)
+{ return parse_impl(text, document, allow_initial_bom, true); }
+
+bool PgnParser::parse_impl(const std::string& text, PgnDocument& document,
+                           bool allow_initial_bom, bool retain_prefix)
 {
     Lexer lexer(text, allow_initial_bom);
     std::vector<Token> tokens;
@@ -583,11 +658,21 @@ bool PgnParser::parse(const std::string& text, PgnDocument& document,
     int game_number = 1;
     std::clock_t build_start = std::clock();
     while (index < tokens.size() && tokens[index].type != TOKEN_END) {
-        PgnGame* game = 0;
+        std::auto_ptr<PgnGame> owner(new PgnGame());
+        PgnGame* game = owner.get();
+        MoveNode* stopped_at = 0;
         std::size_t start = index;
-        if (parse_game(tokens, index, game_number, document, game)) document.games.push_back(game);
-        else {
-            delete game;
+        const bool complete = parse_game(tokens, index, game_number, document, game,
+                                          retain_prefix ? &stopped_at : 0);
+        if (!complete && stopped_at) {
+            if (game->parse_status != PGN_PARTIAL)
+                record_issue(*game, PGN_PARTIAL, document.errors.back(), stopped_at);
+        }
+        if (complete || (retain_prefix && stopped_at)) {
+            document.games.push_back(game);
+            owner.release();
+        }
+        if (!complete) {
             while (index < tokens.size() && tokens[index].type != TOKEN_END && tokens[index].type != TOKEN_TAG) ++index;
             if (index == start) ++index;
         }

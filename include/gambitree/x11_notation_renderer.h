@@ -90,7 +90,8 @@ public:
     const NotationFontMetrics& metrics() const;
     void draw_controls(Drawable drawable, int window_width, const std::string& label,
                        bool previous_file, bool next_file, bool previous_game, bool next_game) const;
-    void draw_status(Drawable drawable, int window_width, const std::string& text) const;
+    void set_status(const std::string& text);
+    void draw_status(Drawable drawable, int window_width) const;
     void draw_delete_dialog(Drawable drawable, int width, int height, bool error,
                             const std::vector<std::string>& lines,
                             int focused_button, int hovered_button) const;
@@ -153,6 +154,7 @@ private:
     int text_height_;
     int board_share_;
     bool figurines_;
+    std::string status_;
     NotationSearch search_;
     NavigationListState* navigation_list_;
     std::string navigation_list_title_;

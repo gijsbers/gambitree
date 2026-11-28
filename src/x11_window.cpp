@@ -620,6 +620,8 @@ std::string game_label(const PgnLibrary* library)
     if (library->game_count() == 0) return "No indexed game";
     text << "Game " << library->game_index() + 1 << "/" << library->game_count();
     if (!library->indexing_complete()) text << "+";
+    if (library->current_game() && library->current_game()->parse_status != PGN_COMPLETE)
+        text << " (partial)";
     return text.str();
 }
 
@@ -676,12 +678,22 @@ bool load_selected_game(PgnLibrary* library, PgnGame& placeholder, PgnGame*& gam
     delete navigator; navigator = new MoveNavigator(placeholder); game = &placeholder; scroll = 0;
     if (!library->materialize_current(error)) {
         status = "Loading game failed: " + error;
+        std::ostringstream context;
+        context << basename(library->current_file()->path) << ": game "
+                << library->game_index() + 1 << ": ";
+        // The library includes context for the sidebar; log it only once.
+        const std::string detail = error.compare(0, context.str().size(), context.str()) == 0
+            ? error.substr(context.str().size()) : error;
         std::cerr << "gambitree: " << library->current_file()->path << ": game "
-                  << library->game_index() + 1 << ": " << error << "\n";
+                  << library->game_index() + 1 << ": " << detail << "\n";
         return false;
     }
     game = library->current_game();
-    delete navigator; navigator = new MoveNavigator(*game); status.clear(); return true;
+    delete navigator; navigator = new MoveNavigator(*game);
+    status = game->parse_warning();
+    // Lay out the notation before revealing the initial error position.
+    if (game->parse_status != PGN_COMPLETE) scroll = -1;
+    return true;
 }
 
 void set_title(Display* display, Window window, const PgnLibrary* library,
@@ -809,7 +821,7 @@ bool restore_current_game_navigation(VisitedGameStates& states,
     const PgnFile* file;
     bool exact_path = false;
     bool restored;
-    if (!library || !game)
+    if (!library || !game || game->parse_status != PGN_COMPLETE)
         return false;
     file = library->current_file();
     if (!file || library->current_game() != game)
@@ -888,6 +900,8 @@ void redraw(Display* display, int screen, Window window, int width, int height, 
     Pixmap target = backbuffer;
     CompleteFrameBuffer frame(static_cast<unsigned long>(backbuffer),
                               backbuffer_width, backbuffer_height);
+    const std::string visible_status = status.empty() ? game.parse_warning() : status;
+    notation.set_status(visible_status);
     int notation_viewport = notation.notation_viewport_height(width, height,
                                                               game);
     engine_display.sync_position(navigator.position(), navigator.current());
@@ -928,7 +942,7 @@ void redraw(Display* display, int screen, Window window, int width, int height, 
                   << (layout_finished - diagnostics_origin_us) / 1000
                   << " ms, items=" << layout.items().size() << "\n";
     }
-    if (scroll < 0) scroll = 0;
+    if (scroll < 0) scroll = layout.ensure_visible(navigator.current(), 0, notation_viewport);
     if (scroll > layout.max_scroll(notation_viewport)) scroll = layout.max_scroll(notation_viewport);
     update_highlight(navigator.current(), highlight);
     if (engine_display.preview_move()) {
@@ -946,7 +960,7 @@ void redraw(Display* display, int screen, Window window, int width, int height, 
     notation.draw_controls(target, width, game_label(library), library && library->can_previous_file(),
                            library && library->can_next_file(), library && library->can_previous_game(),
                            library && library->can_next_game());
-    if (!status.empty()) notation.draw_status(target, width, status);
+    if (!visible_status.empty()) notation.draw_status(target, width);
     {
         SidebarGeometry sidebar = notation.sidebar_geometry(width);
         int divider = sidebar.left - BoardLayout::sidebar_gutter() / 2;
@@ -991,6 +1005,7 @@ void redraw(Display* display, int screen, Window window, int width, int height, 
                   << " engine_generation=" << engine.generation()
                   << " pending=" << ((!engine_display.score_is_current() || !engine_display.pv_is_current()) ? "yes" : "no")
                   << " selected=" << (navigator.current()->has_move ? navigator.current()->san : "root")
+                  << " partial=" << (game.parse_status != PGN_COMPLETE ? 1 : 0)
                   << " selected_node=" << navigator.current()
                   << " notation_scroll=" << scroll
                   << " board_share=" << notation.board_share()

@@ -202,31 +202,26 @@ PGN files when you view them. Permanent removal is a separate command,
 described under Removing a game below.
 The Control-G list makes it easier to jump directly to a game. The
 Control-Shift-G list shows the startup file arguments in their original order.
+.PP
+If a move is invalid, you can still replay the earlier moves. Gambitree shows
+the position before the error and displays a warning explaining the problem.
+.PP
+An error in an alternative line may leave the rest of the game playable.
+Some damaged games cannot be opened.
 .SH OPTIONS
-.TP
-.B --fullscreen
-Ask the window manager to start fullscreen. Not saved in session settings.
-.TP
-.B --iconic
-Ask the window manager to start minimized. Not saved in session settings.
-.TP
-.BI --title " TITLE"
-Use TITLE as the window title.  Without this option, the usual Gambitree
-title, filename and available game index are shown.
-.TP
-.BI --role " NAME"
-Set the main window's WM_WINDOW_ROLE property for window-manager rules.
-NAME must be non-empty printable ASCII.  By default this property is absent.
-.TP
-.BI --engine " PATH"
-Use PATH as the chess engine program instead of the default name
-.BR stockfish .
 .TP
 .BI --board " BOARD"
 Choose classic, wood or wood-veneer. This overrides the saved board preference
 and is remembered through the usual session settings. Without this option,
 use the saved preference, or Classic if none is available. If repeated, the
 last value wins. Press B to cycle boards while the window is open.
+.TP
+.BI --engine " PATH"
+Use PATH as the chess engine program instead of the default name
+.BR stockfish .
+.TP
+.B --fullscreen
+Ask the window manager to start fullscreen. Not saved in session settings.
 .TP
 .BI --geometry " GEOMETRY"
 Set the starting client size and window position using X11 geometry syntax,
@@ -240,6 +235,12 @@ Missing or invalid values are ignored with a warning; the last valid
 --geometry wins. The resulting geometry is remembered through the existing
 session settings.
 .TP
+.B --help
+Show a short list of command options and exit.
+.TP
+.B --iconic
+Ask the window manager to start minimized. Not saved in session settings.
+.TP
 .BI --pieces " NAME"
 Choose a bundled piece design:
 gambitree, \%meridian\-shaded or cburnett.
@@ -249,8 +250,13 @@ piece folders may also be used.
 .B --print-window-id
 Print the X11 window number after the window opens.
 .TP
-.B --help
-Show a short list of command options and exit.
+.BI --role " NAME"
+Set the main window's WM_WINDOW_ROLE property for window-manager rules.
+NAME must be non-empty printable ASCII.  By default this property is absent.
+.TP
+.BI --title " TITLE"
+Use TITLE as the window title.  Without this option, the usual Gambitree
+title, filename and available game index are shown.
 .TP
 .B --version
 Show the Gambitree version and exit.
@@ -269,6 +275,9 @@ after the file has finished indexing, and only for a regular, non-symbolic-link
 file no larger than 32 MiB with one hard link. Gambitree records a SHA-256
 content fingerprint and file identity when a file is loaded; removal is refused
 if the identity, metadata, or content has changed.
+.PP
+Damaged games can also be removed when Gambitree can safely identify the
+whole game. Otherwise, it refuses removal and leaves the file unchanged.
 .PP
 Larger PGN files remain available for viewing, but game removal is disabled
 for files over the limit. Gambitree stages the remaining file contents in the

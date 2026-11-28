@@ -780,7 +780,10 @@ void NotationLayout::build(const PgnGame& game, int width, const NotationFontMet
     chessbase_mega_ = has_chessbase_mega_context;
     append_comments(game.root, 0);
     render_mainline(game.root, game.initial_position, 0, true, true);
-    if (!game.result.empty()) append(NOTATION_RESULT, 0, game.result, 0);
+    if (game.parse_status != PGN_PARTIAL && !game.result.empty())
+        append(NOTATION_RESULT, 0, game.result, 0);
+    if (game.parse_status != PGN_COMPLETE)
+        append(NOTATION_COMMENT, 0, game.parse_warning(), 0);
     {
         std::size_t index;
         for (index = 0; index < game.trailing_items.size(); ++index) {

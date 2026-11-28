@@ -88,6 +88,9 @@ $(BUILD_DIR)/pgn.o: $(SRC_DIR)/pgn.cpp include/gambitree/pgn.h include/gambitree
 $(BUILD_DIR)/pgn_library.o: $(SRC_DIR)/pgn_library.cpp include/gambitree/pgn_library.h include/gambitree/pgn_delete.h include/gambitree/pgn.h | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
+# These callers also depend on the embedded PgnIndex/PgnFile layout.
+$(BUILD_DIR)/pgn_library.o $(BUILD_DIR)/x11_window.o $(BUILD_DIR)/test_main.o: include/gambitree/pgn_index.h
+
 $(BUILD_DIR)/pgn_index.o: $(SRC_DIR)/pgn_index.cpp include/gambitree/pgn_index.h include/gambitree/pgn.h | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 

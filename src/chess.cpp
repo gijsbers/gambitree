@@ -51,27 +51,35 @@ int fen_piece(char letter)
     return type == NO_PIECE ? EMPTY : (color == WHITE ? type : -type);
 }
 
-bool san_origin_matches(const std::string& supplied,
-                        const std::string& canonical, const Move& move)
+// LAN only adds an explicit source square to an already legal move candidate.
+// Keep capture and promotion spelling strict; the optional piece must match.
+bool lan_matches(const std::string& text, const Move& move, PieceType piece)
+{
+    const char letter = piece == PAWN ? 'P' : piece_letter(piece);
+    const std::size_t prefix = !text.empty() && text[0] == letter ? 1 : 0;
+    if (text.size() < prefix + 4 ||
+        text[prefix] != 'a' + move.from % 8 ||
+        text[prefix + 1] != '1' + move.from / 8) return false;
+    std::string body;
+    if (move.flags & MOVE_CAPTURE) body += 'x';
+    else if (text[prefix + 2] == '-') body += '-';
+    body += Position::square_to_string(move.to);
+    if (move.flags & MOVE_PROMOTION) {
+        body += '=';
+        body += piece_letter(move.promotion);
+    }
+    return text.compare(prefix + 2, std::string::npos, body) == 0;
+}
+
+bool san_origin_matches(const std::string& supplied_core,
+                        const std::string& canonical_core, const Move& move)
 {
     if (move.from < 0 || move.from >= 64 ||
         (move.flags & (MOVE_CASTLE_KINGSIDE | MOVE_CASTLE_QUEENSIDE)))
         return false;
-    if (supplied.empty() || canonical.empty() || supplied[0] != canonical[0] ||
-        std::string("KQRBN").find(supplied[0]) == std::string::npos)
+    if (supplied_core.empty() || canonical_core.empty() || supplied_core[0] != canonical_core[0] ||
+        std::string("KQRBN").find(supplied_core[0]) == std::string::npos)
         return false;
-    std::size_t supplied_end = supplied.size();
-    std::size_t canonical_end = canonical.size();
-    if (supplied_end > 1 && (supplied[supplied_end - 1] == '+' ||
-                             supplied[supplied_end - 1] == '#')) --supplied_end;
-    if (canonical_end > 1 && (canonical[canonical_end - 1] == '+' ||
-                              canonical[canonical_end - 1] == '#')) --canonical_end;
-    const bool supplied_suffix = supplied_end != supplied.size();
-    const bool canonical_suffix = canonical_end != canonical.size();
-    if (supplied_suffix != canonical_suffix ||
-        (supplied_suffix && supplied[supplied_end] != canonical[canonical_end])) return false;
-    const std::string supplied_core = supplied.substr(0, supplied_end);
-    const std::string canonical_core = canonical.substr(0, canonical_end);
     if (supplied_core.size() <= 2 || canonical_core.size() <= 1) return false;
     std::size_t canonical_origin = 0;
     const std::size_t body_after_piece = 1;
@@ -116,14 +124,12 @@ bool san_origin_matches(const std::string& supplied,
     return false;
 }
 
-bool san_missing_check_suffix_matches(const std::string& supplied,
-                                      const std::string& canonical)
+std::string san_move_text(const std::string& text)
 {
-    return canonical.size() == supplied.size() + 1 &&
-           !supplied.empty() &&
-           canonical.compare(0, supplied.size(), supplied) == 0 &&
-           (canonical[canonical.size() - 1] == '+' ||
-            canonical[canonical.size() - 1] == '#');
+    // A check/mate annotation describes the position; it is not move legality.
+    if (!text.empty() && (text[text.size() - 1] == '+' || text[text.size() - 1] == '#'))
+        return text.substr(0, text.size() - 1);
+    return text;
 }
 
 }
@@ -681,19 +687,26 @@ std::string Position::san_from_legal_moves(const Move& requested,
 }
 bool Position::parse_san(const std::string& text, Move& move) const
 {
+    const std::string supplied = san_move_text(text);
+    // This short spelling must be unique among all legal captures, not just pawns.
+    const bool missing_pawn_file = supplied.size() >= 3 && supplied[0] == 'x';
     const std::vector<Move> moves = legal_moves();
     std::size_t i;
     bool found = false;
     Move match;
     for (i = 0; i < moves.size(); ++i) {
-        const std::string canonical = san_from_legal_moves(moves[i], moves, true);
-        if (canonical != text &&
-            !san_missing_check_suffix_matches(text, canonical) &&
-            !san_origin_matches(text, canonical, moves[i])) continue;
+        const std::string canonical = san_from_legal_moves(moves[i], moves, false);
+        const std::size_t capture = missing_pawn_file && (moves[i].flags & MOVE_CAPTURE)
+            ? canonical.find('x') : std::string::npos;
+        if (canonical != supplied &&
+            !san_origin_matches(supplied, canonical, moves[i]) &&
+            !lan_matches(supplied, moves[i], type_of(board_[moves[i].from])) &&
+            !(capture != std::string::npos && canonical.substr(capture) == supplied)) continue;
         if (found) return false;
         match = moves[i];
         found = true;
     }
+    if (found && missing_pawn_file && type_of(board_[match.from]) != PAWN) return false;
     if (found) move = match;
     return found;
 }

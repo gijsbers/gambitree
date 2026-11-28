@@ -259,6 +259,7 @@ PgnGame* PgnLibrary::current_game() const
 
 bool PgnLibrary::materialize_current(std::string& error)
 {
+    error.clear();
     PgnFile* file;
     const PgnIndexEntry* entry;
     std::ifstream input;
@@ -289,15 +290,15 @@ bool PgnLibrary::materialize_current(std::string& error)
     if (!input || (!data.empty() && !input.read(&data[0], static_cast<std::streamsize>(data.size())))) { error = "cannot read indexed game range"; return false; }
     read_finished = monotonic_microseconds();
     try {
-        PgnParser::parse(data, document, entry->begin == 0);
+        PgnParser::parse_for_viewing(data, document, entry->begin == 0);
     } catch (const std::bad_alloc&) {
         error = "insufficient memory while parsing game";
         return false;
     }
     parse_finished = monotonic_microseconds();
+    const bool already_reported = file->warning_reported_games.find(game_index_) !=
+                                  file->warning_reported_games.end();
     if (document.skipped_variation_count != 0) {
-        bool already_reported = file->warning_reported_games.find(game_index_) !=
-                                file->warning_reported_games.end();
         if (!already_reported) {
             std::size_t warning_index;
             std::size_t displayed = document.warnings.size();
@@ -317,7 +318,7 @@ bool PgnLibrary::materialize_current(std::string& error)
             file->warning_reported_games.insert(game_index_);
         }
     }
-    if (document.games.empty()) {
+    if (document.games.empty() || (file->index.provisional() && !document.errors.empty())) {
         if (file->index.provisional()) {
             std::string fallback_error;
             if (!file->index.fallback_to_general(fallback_error)) {
@@ -328,15 +329,34 @@ bool PgnLibrary::materialize_current(std::string& error)
             error = "provisional game boundary could not be validated; switched to robust reindexing";
             return false;
         }
-        if (!document.errors.empty()) { std::ostringstream text; const PgnError& e = document.errors[0]; text << "parse error in game starting at byte " << entry->begin << ", line " << e.line << ", column " << e.column << ": " << e.message; error = text.str(); }
+        if (!document.errors.empty()) {
+            const PgnError& e = document.errors[0];
+            const std::size_t slash = file->path.find_last_of('/');
+            std::ostringstream text;
+            text << file->path.substr(slash == std::string::npos ? 0 : slash + 1)
+                 << ": game " << game_index_ + 1 << ": " << e.message
+                 << " (game line " << e.line << ", column " << e.column
+                 << "; game starts at byte " << entry->begin << ")";
+            error = text.str();
+        }
         else error = "no valid PGN game in indexed range";
         return false;
     }
     delete file->loaded_game;
     file->loaded_game = document.games[0];
     document.games[0] = 0;
-    document.games.clear();
     file->loaded_index = game_index_;
+    if (file->loaded_game->parse_status != PGN_COMPLETE &&
+        game_index_ < static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        file->loaded_game->parse_error.game_number = static_cast<int>(game_index_ + 1);
+    if (file->loaded_game->parse_status == PGN_PARTIAL && !already_reported) {
+        const PgnGame& game = *file->loaded_game;
+        const Position& before = game.error_position == game.root ?
+            game.initial_position : game.error_position->position_after;
+        std::cerr << "gambitree: " << file->path << ": game " << game_index_ + 1
+                  << ": " << game.parse_warning() << " FEN " << before.to_fen() << "\n";
+        file->warning_reported_games.insert(game_index_);
+    }
     if (diagnostics) {
         double read_ms = static_cast<double>(read_finished - started) / 1000.0;
         double parse_ms = static_cast<double>(parse_finished - read_finished) / 1000.0;
@@ -376,6 +396,11 @@ bool PgnLibrary::current_game_deletion_eligible(std::string& reason) const
         reason = "The PGN file changed while it was being indexed; reopen it before deleting.";
         return false;
     }
+    if (!file->index.boundaries_reliable(game_index_) ||
+        (game_count() == 1 && !file->index.whole_file_is_single_game())) {
+        reason = "Gambitree cannot safely tell where this game starts and ends. It has not been removed.";
+        return false;
+    }
     return true;
 }
 
@@ -406,8 +431,11 @@ bool PgnLibrary::delete_current_game(bool& committed, bool& file_removed,
     }
     {
         const PgnIndexEntry& entry = file->index.entries()[old_game_index];
-        if (!pgn_delete_range(file->path, file->delete_baseline, entry.begin,
-                              entry.end, old_game_count == 1, result)) {
+        // Whole-file removal also requires the indexer's independent coverage proof.
+        const bool whole_file = old_game_count == 1 && file->index.whole_file_is_single_game();
+        const PgnOffset begin = whole_file ? 0 : entry.begin;
+        if (!pgn_delete_range(file->path, file->delete_baseline, begin,
+                              entry.end, whole_file, result)) {
             error = result.message;
             return false;
         }

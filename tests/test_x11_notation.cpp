@@ -187,6 +187,101 @@ bool matches_image_region(XImage* image, int x, int y, XImage* reference)
     return true;
 }
 
+
+void test_san_suffix_rendering(Display* display, int screen)
+{
+    std::ifstream input("tests/data/guarin-malagon-2024-mate-suffix.pgn", std::ios::binary);
+    std::string pgn((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    PgnDocument document;
+    check(PgnParser::parse(pgn, document) && document.games.size() == 1,
+          "the reported SAN-suffix game opens for actual Xft rendering");
+    if (document.games.empty()) return;
+    PgnGame& game = *document.games[0];
+    MoveNavigator navigator(game);
+    navigator.to_end();
+    X11NotationRenderer notation(display, screen);
+    BoardRenderer board(display, screen);
+    std::string error;
+    check(board.load_piece_set("gambitree", error),
+          "mating-position capture loads the default pieces");
+    EngineDisplay engine;
+    const int widths[] = {900, 1300};
+    const int height = 850;
+    for (int mode = 0; mode < 2; ++mode) {
+        const int width = widths[mode];
+        notation.set_figurines(mode != 0);
+        NotationLayout layout;
+        layout.set_figurines(mode != 0);
+        layout.build(game, notation.content_width(width), notation.metrics());
+        const MoveNode* last = navigator.current();
+        bool found = false;
+        for (std::size_t i = 0; i < layout.items().size(); ++i) {
+            const NotationItem& item = layout.items()[i];
+            if (item.kind == NOTATION_MOVE && item.node == last) {
+                found = item.text == (mode ? "♖g1+" : "Rg1+") &&
+                    layout.hit_test(item.x + item.width / 2, item.y + 1, 0) == last;
+            }
+        }
+        check(found && navigator.position().is_checkmate(),
+              "live Xft measurement retains the source check sign and exact navigable mating node");
+        Pixmap surface = XCreatePixmap(display, RootWindow(display, screen), width, height,
+                                       DefaultDepth(display, screen));
+        const SidebarBoxes ordinary = notation.boxes(width, height, game);
+        const int viewport = ordinary.notation_bottom - ordinary.notation_top;
+        const int scroll = layout.ensure_visible(last, 0, viewport);
+        LastMoveHighlight highlight;
+        highlight.from = last->move.from; highlight.to = last->move.to; highlight.valid = true;
+        board.draw(surface, width, height, navigator.position(), false, highlight,
+                   notation.sidebar_preferred_width(width));
+        notation.draw(surface, width, height, game, layout, last, scroll, engine);
+        check(save_ppm((test_scratch_directory + (mode ? "/mate-suffix-figurines.ppm" :
+                                                        "/mate-suffix-letters.ppm")).c_str(),
+                       display, DefaultVisual(display, screen), surface, width, height),
+              "capture the reported mating position with its original source notation");
+        const std::size_t move = pgn.rfind("Rg1+");
+        PgnDocument invalid;
+        std::string broken = pgn;
+        if (move != std::string::npos) broken.replace(move, 4, "Rh2+");
+        check(!PgnParser::parse(broken, invalid) && invalid.errors.size() == 1,
+              "real illegal move remains available for error rendering regression");
+        if (invalid.errors.size() == 1) {
+            const std::string message = "r.pgn: game 1: " + invalid.errors[0].message +
+                " (game line 22, column 933)";
+            notation.set_status(message);
+            const SidebarBoxes wrapped = notation.boxes(width, height, game);
+            const int first_row = ordinary.status_bottom - ordinary.status_top - 4;
+            check(wrapped.status_bottom > ordinary.status_bottom + first_row &&
+                  wrapped.engine_top - ordinary.engine_top ==
+                      wrapped.status_bottom - ordinary.status_bottom,
+                  "long parse errors wrap and move later panels below all diagnostic rows");
+            notation.draw(surface, width, height, game, layout, last, scroll, engine);
+            const SidebarGeometry sidebar = notation.sidebar_geometry(width);
+            const int top = wrapped.status_top + first_row;
+            const int rows = wrapped.status_bottom - top;
+            XImage* blank = XGetImage(display, surface, sidebar.content_left, top,
+                                      sidebar.content_width, rows, AllPlanes, ZPixmap);
+            notation.draw_status(surface, width);
+            XImage* drawn = XGetImage(display, surface, sidebar.content_left, top,
+                                      sidebar.content_width, rows, AllPlanes, ZPixmap);
+            bool lower_ink = false;
+            if (blank && drawn) for (int y = 0; y < rows; ++y)
+                for (int x = 0; x < sidebar.content_width; ++x)
+                    if (XGetPixel(blank, x, y) != XGetPixel(drawn, x, y)) lower_ink = true;
+            check(lower_ink, "parse-error text is actually drawn below its formerly clipped first row");
+            if (blank) XDestroyImage(blank);
+            if (drawn) XDestroyImage(drawn);
+            check(save_ppm((test_scratch_directory + (mode ? "/parse-error-wide.ppm" :
+                                                            "/parse-error-narrow.ppm")).c_str(),
+                           display, DefaultVisual(display, screen), surface, width, height),
+                  "capture the complete wrapped parser diagnostic");
+            notation.set_status("");
+            check(notation.boxes(width, height, game).status_bottom == ordinary.status_bottom,
+                  "clearing a parse error restores the ordinary single status row");
+        }
+        XFreePixmap(display, surface);
+    }
+}
+
 void test_analysis_preview_rendering(Display* display, int screen)
 {
     PgnDocument document;
@@ -349,6 +444,164 @@ void send_preview_event(Display* display, Window window, bool click, int x, int 
     }
     XSendEvent(display, window, False, click ? ButtonPressMask : KeyPressMask, &event);
     XFlush(display);
+}
+
+void test_lan_window(Display* display, int screen)
+{
+    const std::string base = test_paths::make_directory("lan", test_scratch_directory);
+    if (base.empty()) { check(false, "create isolated LAN viewer state"); return; }
+    SessionState initial = default_session_state();
+    initial.width = 1100; initial.height = 800; initial.analysis_enabled = false;
+    check(save_session_state(base + "/gambitree/state", initial), "seed isolated LAN viewer preferences");
+    Window window = 0;
+    const pid_t viewer = start_session_viewer(display, base, 0, 0,
+        "tests/data/spice-cup-2025-lan.pgn", &window);
+    check(window && wait_preview_frame(base, "indexing=no"), "live viewer loads both LAN games");
+    const char* finals[] = {
+        "rnbqr1k1/5pbp/3p1np1/p1pP4/Pp2P3/1P1B1N2/1B1N1PPP/R2Q1RK1 b - - 2 13",
+        "r4rk1/2pqbppp/2npbn2/1p1Np3/4P3/1BPP1N2/1P3PPP/R1BQR1K1 w - - 3 14"
+    };
+    if (window) for (int g = 0; g < 2; ++g) {
+        send_preview_event(display, window, false, 0, 0, XK_Right);
+        check(wait_preview_frame(base, g ? "selected=e2e4" : "selected=d2d4"),
+              "live PGN selection preserves the original LAN spelling");
+        send_preview_event(display, window, false, 0, 0, XK_End);
+        check(wait_preview_frame(base, std::string("board_fen='") + finals[g] + "'"),
+              "live board navigation reaches the independent exact LAN final FEN");
+        XWindowAttributes attributes;
+        if (XGetWindowAttributes(display, window, &attributes))
+            check(save_ppm((test_scratch_directory + (g ? "/lan-game-2.ppm" : "/lan-game-1.ppm")).c_str(),
+                           display, DefaultVisual(display, screen), window, attributes.width, attributes.height),
+                  "capture the live LAN notation and its final board position");
+        if (!g) {
+            const std::string previous = last_preview_frame(base);
+            send_preview_event(display, window, false, 0, 0, XK_Next);
+            check(wait_preview_frame(base, "selected=root", previous), "Page Down opens the second LAN game");
+        }
+    }
+    check(stop_session_viewer(viewer), "LAN viewer shuts down normally");
+    const std::string broken = base + "/illegal-lan.pgn";
+    { std::ofstream file(broken.c_str()); file << "[Event \"Illegal LAN\"]\n\n1. d2d5 *\n"; }
+    const std::string previous = last_preview_frame(base);
+    window = 0;
+    const pid_t invalid = start_session_viewer(display, base, 0, 0, broken.c_str(), &window);
+    check(window && wait_preview_frame(base, "indexing=no", previous),
+          "invalid LAN still presents a safe viewer window after indexed loading");
+    check(stop_session_viewer(invalid), "invalid LAN viewer shuts down normally");
+    std::ifstream log((base + "/viewer.log").c_str());
+    std::string line;
+    bool found = false;
+    while (std::getline(log, line)) {
+        if (line.find("SAN move \"d2d5\"") == std::string::npos) continue;
+        const std::size_t filename = line.find("illegal-lan.pgn");
+        const std::size_t game = line.find("game 1:");
+        found = filename != std::string::npos && game != std::string::npos &&
+            line.find("illegal-lan.pgn", filename + 1) == std::string::npos &&
+            line.find("game 1:", game + 1) == std::string::npos &&
+            line.find("1.White") != std::string::npos && line.find("no unique legal move") != std::string::npos &&
+            line.find("game line ") != std::string::npos && line.find("column ") != std::string::npos;
+        check(found, "console diagnostics retain all error details with exactly one filename and game number");
+    }
+    check(found, "the real invalid-LAN loading path emits its contextual diagnostic");
+}
+
+bool wait_delete_dialog(Display* display, Window parent, bool visible, Window& dialog)
+{
+    for (int attempt = 0; attempt < 500; ++attempt) {
+        Window root, returned_parent, *children = 0;
+        unsigned int count = 0;
+        dialog = 0;
+        // Gambitree's only child window is its confirmation/error dialog.
+        // Do not query a child after it may have been destroyed by the viewer.
+        if (XQueryTree(display, parent, &root, &returned_parent, &children, &count) && count)
+            dialog = children[0];
+        if (children) XFree(children);
+        if ((dialog != 0) == visible) return true;
+        usleep(10000);
+    }
+    return false;
+}
+
+std::string deletion_fixture_bytes(const std::string& path)
+{
+    std::ifstream input(path.c_str(), std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+}
+
+void test_partial_game_window(Display* display, int screen)
+{
+    const std::string base = test_paths::make_directory("partial", test_scratch_directory);
+    if (base.empty()) { check(false, "create isolated partial-game viewer state"); return; }
+    const std::string path = base + "/partial-view.pgn";
+    {
+        std::ifstream source("tests/data/guarin-malagon-2024-illegal-last-move.pgn", std::ios::binary);
+        std::ofstream output(path.c_str(), std::ios::binary);
+        output << source.rdbuf() << "\n\n[Event \"Valid following game\"]\n\n1. d4 d5 *\n";
+    }
+    SessionState initial = default_session_state();
+    initial.width = 1100; initial.height = 800; initial.analysis_enabled = false;
+    initial.notation_points = 16; initial.board_share = 6500;
+    check(save_session_state(base + "/gambitree/state", initial), "seed isolated partial-game preferences");
+    Window window = 0;
+    const pid_t viewer = start_session_viewer(display, base, 0, 0, path.c_str(), &window);
+    const std::string fen = "8/8/8/4B3/2b3p1/6R1/5K2/7k w - - 7 78";
+    check(window && wait_preview_frame(base, "board_fen='" + fen + "'"),
+          "live partial loading automatically presents the position before the illegal move");
+    if (window) {
+        const std::string frame = last_preview_frame(base);
+        check(frame.find("selected=Bc4") != std::string::npos && frame.find("partial=1") != std::string::npos &&
+              frame.find("notation_scroll=0 ") == std::string::npos,
+              "partial status and last legal PGN selection are visible after the initial layout");
+        XWindowAttributes attributes;
+        if (XGetWindowAttributes(display, window, &attributes))
+            check(save_ppm((test_scratch_directory + "/partial-game.ppm").c_str(), display,
+                           DefaultVisual(display, screen), window, attributes.width, attributes.height),
+                  "capture the partial warning, legal notation prefix and pre-error board");
+        send_preview_event(display, window, false, 0, 0, XK_Left);
+        check(wait_preview_frame(base, "selected=Kf2"), "Left navigates within the valid partial prefix");
+        send_preview_event(display, window, false, 0, 0, XK_Right);
+        check(wait_preview_frame(base, "selected=Bc4"), "Right returns to the final legal move");
+        send_preview_event(display, window, false, 0, 0, XK_Home);
+        check(wait_preview_frame(base, "selected=root"), "Home still navigates to the original PGN root");
+        const std::string previous = last_preview_frame(base);
+        send_preview_event(display, window, false, 0, 0, XK_g, ControlMask);
+        send_preview_event(display, window, false, 0, 0, XK_Down);
+        send_preview_event(display, window, false, 0, 0, XK_Return);
+        check(wait_preview_frame(base, "partial=0", previous), "the game selector opens the following valid game");
+        send_preview_event(display, window, false, 0, 0, XK_Right);
+        check(wait_preview_frame(base, "selected=d4"), "the valid following game retains ordinary PGN navigation");
+        send_preview_event(display, window, false, 0, 0, XK_g, ControlMask);
+        send_preview_event(display, window, false, 0, 0, XK_Up);
+        send_preview_event(display, window, false, 0, 0, XK_Return);
+        check(wait_preview_frame(base, "board_fen='" + fen + "'"),
+              "returning via the selector reveals the error position instead of an old saved root");
+        const std::string original = deletion_fixture_bytes(path);
+        Window dialog = 0;
+        send_preview_event(display, window, false, 0, 0, XK_Delete, ControlMask);
+        const bool shown = wait_delete_dialog(display, window, true, dialog);
+        check(shown, "Control-Delete offers confirmation for the partially loaded game");
+        if (shown) {
+            send_preview_event(display, dialog, false, 0, 0, XK_Escape);
+            check(wait_delete_dialog(display, window, false, dialog) && deletion_fixture_bytes(path) == original,
+                  "Escape cancels deletion and leaves the partial game and its source unchanged");
+            send_preview_event(display, window, false, 0, 0, XK_Delete, ControlMask);
+            if (wait_delete_dialog(display, window, true, dialog)) {
+                send_preview_event(display, dialog, false, 0, 0, XK_y);
+                check(wait_delete_dialog(display, window, false, dialog) &&
+                      wait_preview_frame(base, "partial=0") && deletion_fixture_bytes(path) ==
+                      "[Event \"Valid following game\"]\n\n1. d4 d5 *\n",
+                      "confirmed partial-game deletion retains the following game exactly and selects it");
+            } else check(false, "partial deletion confirmation can be reopened after cancellation");
+        }
+    }
+    check(stop_session_viewer(viewer), "the partial viewer exits normally");
+    std::ifstream log((base + "/viewer.log").c_str());
+    const std::string text((std::istreambuf_iterator<char>(log)), std::istreambuf_iterator<char>());
+    const std::size_t warning = text.find("\"Rh8\"");
+    check(warning != std::string::npos && text.find("\"Rh8\"", warning + 1) == std::string::npos &&
+          text.find("154 preceding plies available") != std::string::npos &&
+          text.find("selected=Rh8") == std::string::npos,
+          "live navigation and selector reloads neither execute nor repeatedly report the illegal move");
 }
 
 bool window_title_matches(Display* display, Window window,
@@ -1737,6 +1990,9 @@ int main()
     test_geometry_window(display);
     test_window_modes(display);
     test_session_window(display);
+    test_partial_game_window(display,screen);
+    test_lan_window(display,screen);
+    test_san_suffix_rendering(display,screen);
     test_analysis_preview_rendering(display,screen);
     test_analysis_preview_window(display,screen);
     test_spacing_and_selection(display,screen);
@@ -1908,6 +2164,10 @@ int main()
     if (pieces) XftFontClose(display,pieces);
     XftFontClose(display,normal); XCloseDisplay(display);
     if (failures) return 1;
+    if (!test_paths::remove_tree(test_scratch_directory)) {
+        std::cerr << "Cannot fully remove X11 test files: " << test_scratch_directory << '\n';
+        return 1;
+    }
     std::cout << "Xft figurine metrics, drawing, fallback and move hitboxes passed.\n";
     return 0;
 }
